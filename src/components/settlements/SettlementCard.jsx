@@ -1,12 +1,10 @@
 import confetti from 'canvas-confetti';
-import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Check, Undo2, Copy, Smartphone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Undo2 } from 'lucide-react';
 import { useLang } from '@/hooks/useLang';
-import { canAttemptOpenBit, copyForBit, tryOpenBit } from '@/lib/bitLink';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-export function SettlementCard({ settlement, participantsById, currency, confirmed, canManage, toPhone, onConfirm, onUnconfirm }) {
+export function SettlementCard({ settlement, participantsById, currency, confirmed, canManage, onConfirm, onUnconfirm }) {
   const { lang, dir } = useLang();
   const ArrowIcon = dir === 'rtl' ? ArrowLeft : ArrowRight;
 
@@ -16,16 +14,6 @@ export function SettlementCard({ settlement, participantsById, currency, confirm
   const handleConfirm = async () => {
     await onConfirm(settlement);
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-  };
-
-  const handleCopyForBit = () => {
-    copyForBit({ amount: settlement.amount, currency, phone: toPhone });
-    toast.success(lang === 'he' ? 'הועתק — פתחו את ביט והדביקו' : 'Copied — open Bit and paste');
-  };
-
-  const handleOpenBit = () => {
-    handleCopyForBit();
-    tryOpenBit();
   };
 
   return (
@@ -58,21 +46,6 @@ export function SettlementCard({ settlement, participantsById, currency, confirm
             </span>
           )}
         </div>
-
-        {!confirmed && canManage && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={handleCopyForBit}>
-              <Copy className="h-3.5 w-3.5" />
-              {lang === 'he' ? 'העתקה לביט' : 'Copy for Bit'}
-            </Button>
-            {canAttemptOpenBit() && (
-              <Button size="sm" variant="outline" onClick={handleOpenBit}>
-                <Smartphone className="h-3.5 w-3.5" />
-                {lang === 'he' ? 'פתיחת ביט' : 'Open Bit'}
-              </Button>
-            )}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

@@ -43,7 +43,10 @@ export default function Signup() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/40 px-4">
+    <div
+      className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/40 px-4 py-8"
+      style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))', paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+    >
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="mx-auto mb-1 text-3xl">🧳</div>

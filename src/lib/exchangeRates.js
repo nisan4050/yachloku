@@ -1,9 +1,11 @@
 // Free, no-key exchange rates via the Frankfurter API (European Central Bank
 // data), used to let an event mix currencies while balances are always
 // computed in the event's base currency.
+// Note: api.frankfurter.app doesn't send CORS headers anymore — the API
+// moved to frankfurter.dev, which does.
 
 export async function fetchExchangeRates(baseCurrency) {
-  const res = await fetch(`https://api.frankfurter.app/latest?from=${baseCurrency}`);
+  const res = await fetch(`https://api.frankfurter.dev/v1/latest?base=${baseCurrency}`);
   if (!res.ok) throw new Error('Failed to fetch exchange rates');
   const data = await res.json();
   return { base: data.base, date: data.date, rates: { ...data.rates, [data.base]: 1 } };

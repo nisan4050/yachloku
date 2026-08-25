@@ -31,8 +31,11 @@ export function AppShell({ children }) {
   return (
     <div className="min-h-screen bg-background">
       <CommandPalette />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+      <header
+        className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link to="/home" className="flex items-center gap-2">
             <span className="text-2xl">🧳</span>
             <span className="text-lg font-bold text-primary">{t('appName')}</span>
@@ -75,10 +78,13 @@ export function AppShell({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl flex-1 px-4 py-6 pb-28">{children}</main>
+      <main className="mx-auto max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-around h-20">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-around h-20 px-2">
           {NAV_ITEMS.map(({ to, icon: Icon, key }) => (
             <Link
               key={to}

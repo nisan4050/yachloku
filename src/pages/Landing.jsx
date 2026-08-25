@@ -20,7 +20,10 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6">
+      <header
+        className="mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6"
+        style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}
+      >
         <div className="flex items-center gap-2">
           <span className="text-2xl">🧳</span>
           <span className="text-lg font-bold text-primary">{t('appName')}</span>

@@ -11,7 +11,6 @@ import { useExchangeRates, convertExpensesToBase } from '@/hooks/useExchangeRate
 import { usePendingDeletes } from '@/hooks/usePendingDeletes';
 import { confirmSettlement, unconfirmSettlement } from '@/api/payments';
 import { notifyEventMembers } from '@/api/notifications';
-import { useProfilesByIds } from '@/hooks/useNotificationPrefs';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +44,6 @@ export default function EventDetail() {
   const deletePayment = useDeletePayment(eventId);
   const deleteExpense = useDeleteExpense(eventId);
   const isManager = event?.manager_user_id === user.id;
-  const { data: profilesWithPhone } = useProfilesByIds((event?.participants ?? []).filter((p) => p.user_id).map((p) => p.user_id));
 
   const hasMixedCurrencies = (expenses ?? []).some((e) => event && e.currency !== event.currency);
   const { data: rates } = useExchangeRates(event?.currency, hasMixedCurrencies);
@@ -73,7 +71,6 @@ export default function EventDetail() {
   }
 
   const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
-  const phoneByUserId = Object.fromEntries((profilesWithPhone ?? []).map((p) => [p.id, p.phone]));
   const { balances, settlements } = getEventBalances(event.participants, balanceExpenses, payments ?? []);
   const confirmedSettlements = (payments ?? []).map((p) => ({
     from: p.from_participant_id,
@@ -183,7 +180,7 @@ export default function EventDetail() {
       </div>
 
       <Tabs defaultValue="expenses" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full overflow-x-auto sm:w-auto">
+        <TabsList className="h-auto w-full flex-wrap justify-center sm:w-auto">
           <TabsTrigger value="expenses">{lang === 'he' ? 'הוצאות' : 'Expenses'}</TabsTrigger>
           <TabsTrigger value="balances">{lang === 'he' ? 'איזון חשבון' : 'Balances'}</TabsTrigger>
           <TabsTrigger value="group-chat">{lang === 'he' ? 'צ׳אט כללי' : 'Group chat'}</TabsTrigger>
@@ -257,7 +254,6 @@ export default function EventDetail() {
                       currency={event.currency}
                       confirmed={false}
                       canManage={canManageSettlement(s.from)}
-                      toPhone={phoneByUserId[participantsById[s.to]?.user_id]}
                       onConfirm={handleConfirmSettlement}
                     />
                   ))}

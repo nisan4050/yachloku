@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ScanLine, Loader2, Zap, Edit2 } from 'lucide-react';
+import { Loader2, Zap, Edit2 } from 'lucide-react';
 import { useLang } from '@/hooks/useLang';
 import { CATEGORIES } from '@/lib/categories';
 import { computeSplitBetween } from '@/lib/settlementEngine';
 import { getRememberedSplit, rememberSplit } from '@/lib/expenseDefaults';
-import { scanReceipt } from '@/lib/receiptOcr';
 import { fetchExchangeRates } from '@/lib/exchangeRates';
-import { saveDraft, getDraft, clearDraft, hasDraft } from '@/lib/formDrafts';
 import { validateAmount, validateDescription, detectDuplicate } from '@/lib/expenseValidation';
 import { useCreateExpense, useUpdateExpense, useExpenses } from '@/hooks/useExpenses';
 import { uploadReceipt } from '@/api/expenses';
@@ -50,8 +48,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
   const participants = event.participants ?? [];
   const participantsById = Object.fromEntries(participants.map((p) => [p.id, p]));
   const remembered = !isEdit ? getRememberedSplit(event.id) : null;
-  const draftKey = `expense-${event.id}`;
-  const hasSavedDraft = !isEdit && hasDraft(draftKey);
 
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -69,7 +65,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
   const [useCustomPayerAmounts, setUseCustomPayerAmounts] = useState(false);
   const [customPayerAmounts, setCustomPayerAmounts] = useState({});
   const [receiptFile, setReceiptFile] = useState(null);
-  const [scanning, setScanning] = useState(false);
 
   const [amountError, setAmountError] = useState(null);
   const [descriptionError, setDescriptionError] = useState(null);
@@ -99,43 +94,22 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       return;
     }
 
-    const draft = getDraft(draftKey);
-    if (draft) {
-      setDescription(draft.description ?? '');
-      setAmount(draft.amount ?? '');
-      setCurrency(draft.currency ?? event.currency);
-      setCategory(draft.category ?? 'other');
-      setDate(draft.date ?? today());
-      setPayerIds(draft.payerIds?.filter((id) => participants.some((p) => p.id === id)) ?? []);
-      setSplitType(draft.splitType ?? 'equal');
-      setIncludedIds(draft.includedIds?.filter((id) => participants.some((p) => p.id === id)) ?? participants.map((p) => p.id));
-    } else {
-      setDescription('');
-      setAmount('');
-      setCurrency(event.currency);
-      setCategory(remembered?.category ?? 'other');
-      setDate(today());
-      setSplitType(remembered?.splitType ?? 'equal');
-      setPayerIds(
-        remembered?.payerIds?.filter((id) => participants.some((p) => p.id === id)) ?? (participants[0] ? [participants[0].id] : [])
-      );
-      setIncludedIds(
-        remembered?.includedIds?.filter((id) => participants.some((p) => p.id === id)) ?? participants.map((p) => p.id)
-      );
-    }
+    setDescription('');
+    setAmount('');
+    setCurrency(event.currency);
+    setCategory(remembered?.category ?? 'other');
+    setDate(today());
+    setSplitType(remembered?.splitType ?? 'equal');
+    setPayerIds(
+      remembered?.payerIds?.filter((id) => participants.some((p) => p.id === id)) ?? (participants[0] ? [participants[0].id] : [])
+    );
+    setIncludedIds(
+      remembered?.includedIds?.filter((id) => participants.some((p) => p.id === id)) ?? participants.map((p) => p.id)
+    );
     setUseCustomPayerAmounts(false);
     setCustomPayerAmounts({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-
-  // Auto-save draft every 2 seconds (new expenses only — edits don't need draft recovery)
-  useEffect(() => {
-    if (!open || isEdit) return;
-    const interval = setInterval(() => {
-      saveDraft(draftKey, { description, amount, currency, category, date, payerIds, splitType, includedIds });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [open, isEdit, description, amount, currency, category, date, payerIds, splitType, includedIds, draftKey]);
 
   // Check for duplicates (new expenses only)
   useEffect(() => {
@@ -156,7 +130,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
     setDescriptionError(null);
     setDuplicateWarning(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    clearDraft(draftKey);
   };
 
   const togglePayer = (id) =>
@@ -200,29 +173,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
     setDescription(value);
     const validation = validateDescription(value);
     setDescriptionError(validation.valid ? null : validation.error);
-  };
-
-  const handleScan = async () => {
-    if (!receiptFile) return;
-    setScanning(true);
-    try {
-      const { amount: detected } = await scanReceipt(receiptFile);
-      if (detected) {
-        setAmount(String(detected));
-        toast.success(
-          lang === 'he'
-            ? `זוהה סכום: ${detected} — בדקו שהוא נכון לפני שמירה, הזיהוי אינו מובטח`
-            : `Detected amount: ${detected} — please verify it's correct before saving, detection isn't guaranteed`
-        );
-      } else {
-        toast.error(lang === 'he' ? 'לא הצלחתי לזהות סכום, מלאו ידנית' : "Couldn't detect an amount, fill it in manually");
-      }
-    } catch (err) {
-      toast.error(lang === 'he' ? 'סריקת הקבלה נכשלה' : 'Receipt scan failed');
-      console.error(err);
-    } finally {
-      setScanning(false);
-    }
   };
 
   const customPayerSum = round2(payerIds.reduce((sum, id) => sum + (Number(customPayerAmounts[id]) || 0), 0));
@@ -336,28 +286,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? (lang === 'he' ? 'עריכת הוצאה' : 'Edit expense') : t('action_add_expense')}</DialogTitle>
-          {hasSavedDraft && (
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-amber-600">
-                {lang === 'he'
-                  ? '💾 שחזרנו טיוטה שמורה במכשיר הזה מפעם קודמת שלא נשלחה'
-                  : '💾 Restored a draft saved on this device from an earlier, unsent attempt'}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  clearDraft(draftKey);
-                  reset();
-                  setCategory('other');
-                  setPayerIds(participants[0] ? [participants[0].id] : []);
-                  setIncludedIds(participants.map((p) => p.id));
-                }}
-                className="shrink-0 text-xs text-muted-foreground underline hover:no-underline"
-              >
-                {lang === 'he' ? 'התעלמות' : 'Discard'}
-              </button>
-            </div>
-          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -383,19 +311,9 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
               className="text-sm text-muted-foreground file:me-3 file:rounded-full file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm"
             />
             {receiptFile && (
-              <>
-                <Button type="button" variant="outline" size="sm" onClick={handleScan} disabled={scanning} className="self-start">
-                  {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
-                  {scanning
-                    ? lang === 'he' ? 'סורק...' : 'Scanning...'
-                    : lang === 'he' ? 'זיהוי סכום מהקבלה' : 'Detect amount from receipt'}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  {lang === 'he'
-                    ? 'הזיהוי מקומי וחינמי (ללא שירות חיצוני) ואינו מבטיח דיוק — תמיד בדקו את הסכום לפני השמירה.'
-                    : 'Detection runs locally and free (no external service) and cannot guarantee accuracy — always double-check the amount before saving.'}
-                </p>
-              </>
+              <p className="text-xs text-muted-foreground">
+                {lang === 'he' ? `נבחר: ${receiptFile.name}` : `Selected: ${receiptFile.name}`}
+              </p>
             )}
           </div>
 
