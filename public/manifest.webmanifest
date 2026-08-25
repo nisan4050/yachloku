@@ -1,0 +1,17 @@
+{
+  "name": "יחלוקו — ניהול הוצאות משותפות",
+  "short_name": "יחלוקו",
+  "description": "אפליקציית ניהול הוצאות משותפות בטיולים ואירועים קבוצתיים",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0faf5",
+  "theme_color": "#1e9e6e",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

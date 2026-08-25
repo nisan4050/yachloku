@@ -1,0 +1,45 @@
+name: Build APK with EAS
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Setup EAS
+        run: npm install -g eas-cli
+
+      - name: Login to EAS
+        run: eas login --non-interactive
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+
+      - name: Build APK with EAS
+        run: eas build --platform android --non-interactive --wait
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.apk
+          path: './dist/app-release.apk'
+          retention-days: 30
