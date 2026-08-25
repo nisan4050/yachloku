@@ -59,3 +59,4 @@ supabase/
 - ייצוא דוח PDF/Excel.
 - Edge Function לשליחת Web Push בפועל בעת הודעה/הוצאה חדשה (הטבלה `push_subscriptions` וה-service worker כבר מוכנים בצד הלקוח).
 - בדיקות אמיתיות מול פרויקט Supabase חי (הפיתוח עד כה בוצע מול `.env` עם ערכים פיקטיביים).
+# Build Status: CI/CD Active ✅
