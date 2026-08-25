@@ -11,6 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,30 +29,36 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Build web app
         run: npm run build
 
-      - name: Build APK with Capacitor
+      - name: Sync Capacitor
         run: |
-          npx cap add android
+          npx cap sync
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK with Gradle
+        run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
           cd ..
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yachloku-app
+          name: yachloku-app-release
           path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
+          if-no-files-found: warn
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload to Release (if tagged)
         if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
         env:
