@@ -42,6 +42,7 @@ function base64url(bytes: ArrayBuffer | Uint8Array) {
 
 async function importFcmPrivateKey(pem: string) {
   const body = pem
+    .replace(/\\n/g, '\n') // secrets are often stored as a single line with literal \n escapes
     .replace(/-----BEGIN PRIVATE KEY-----/, '')
     .replace(/-----END PRIVATE KEY-----/, '')
     .replace(/\s/g, '');
