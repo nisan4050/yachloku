@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { toast } from 'sonner';
 import { Home, PlusCircle, Settings, LogOut, User, Search } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
@@ -27,6 +30,26 @@ export function AppShell({ children }) {
   const navigate = useNavigate();
 
   const initials = (user?.user_metadata?.full_name || user?.email || '?')[0]?.toUpperCase();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let listeners = [];
+    import('@capacitor/push-notifications').then(({ PushNotifications }) => {
+      Promise.all([
+        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          toast(notification.title ?? '', { description: notification.body });
+        }),
+        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+          const url = action.notification?.data?.url;
+          if (url) navigate(url);
+        }),
+      ]).then((handles) => {
+        listeners = handles;
+      });
+    });
+    return () => listeners.forEach((h) => h.remove());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322836758467",
+    "project_id": "yachloku-2688a",
+    "storage_bucket": "yachloku-2688a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322836758467:android:03399e1be4d93f19758776",
+        "android_client_info": {
+          "package_name": "com.yachloku.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjZ9N2nwVmGxGQFTFQ6QKY4yWIeeJ07C8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

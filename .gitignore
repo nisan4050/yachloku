@@ -17,12 +17,10 @@ dist-ssr
 .env.*
 !.env.example
 
-# Capacitor/Android
-android/
-.gradle
+# Capacitor/Android — android/ is now committed (needed for Firebase/push
+# notifications native config to persist); android/.gitignore handles the
+# fine-grained excludes (build/, .gradle/, local.properties, etc).
 *.keystore
-.gradle/
-local.properties
 
 # Editor directories and files
 .vscode/*
