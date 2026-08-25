@@ -31,7 +31,14 @@ export const DialogContent = forwardRef(({ className, children, ...props }, ref)
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'relative grid w-full max-w-lg gap-4 rounded-3xl border border-border bg-card p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          // min-w-0 + grid-cols-1: a bare `grid` container's implicit column
+          // (and a flex item's default min-width:auto) both refuse to shrink
+          // below their content's intrinsic width — on very narrow screens
+          // (~240px) that pinned the dialog wider than the viewport and
+          // caused an internal horizontal scrollbar. grid-cols-1 gives the
+          // column Tailwind's usual minmax(0,1fr) track instead of the
+          // unconstrained implicit one `grid` alone produces.
+          'relative grid w-full min-w-0 max-w-lg grid-cols-1 gap-4 rounded-3xl border border-border bg-card p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
           className
         )}
         {...props}
