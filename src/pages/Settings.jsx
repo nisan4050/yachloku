@@ -8,6 +8,7 @@ import { useAccessibility } from '@/hooks/useAccessibility';
 import { useProfile, useUpdateNotificationPrefs, useUpdatePhone } from '@/hooks/useNotificationPrefs';
 import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '@/lib/notificationManager';
 import { submitFeedback } from '@/api/feedback';
+import { deleteAccount } from '@/api/account';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -50,6 +51,7 @@ export default function Settings() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackFile, setFeedbackFile] = useState(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const feedbackFileRef = useRef(null);
 
   const { data: profile } = useProfile(user.id);
@@ -84,6 +86,17 @@ export default function Settings() {
 
   const handleTogglePref = (key, checked) => {
     updatePrefs.mutate({ ...prefs, [key]: checked });
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      await signOut();
+    } catch (err) {
+      toast.error(err.message);
+      setDeletingAccount(false);
+    }
   };
 
   const handleSubmitFeedback = async (e) => {
@@ -260,10 +273,8 @@ export default function Settings() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => toast.error(lang === 'he' ? 'יש להשלים הגדרת Edge Function למחיקה' : 'Wire up the delete-account Edge Function to enable this')}
-            >
+            <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+              {deletingAccount && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('action_delete')}
             </Button>
           </DialogFooter>

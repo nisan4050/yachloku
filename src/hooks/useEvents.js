@@ -39,3 +39,11 @@ export function useUpdateEvent(eventId) {
     },
   });
 }
+
+export function useDeleteEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: eventsApi.deleteEvent,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+  });
+}

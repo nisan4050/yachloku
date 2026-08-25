@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Settings2, UserPlus, X } from 'lucide-react';
+import { Settings2, UserPlus, X, Trash2 } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
-import { useUpdateEvent } from '@/hooks/useEvents';
+import { useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -20,9 +23,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const CURRENCIES = ['ILS', 'USD', 'EUR', 'GBP'];
 
 export function EditEventModal({ event }) {
+  const { user } = useAuth();
   const { lang, t } = useLang();
+  const navigate = useNavigate();
   const updateEvent = useUpdateEvent(event.id);
+  const deleteEvent = useDeleteEvent();
   const [open, setOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const canDelete = event.created_by === user.id || event.manager_user_id === user.id;
   const [title, setTitle] = useState(event.title);
   const [description, setDescription] = useState(event.description ?? '');
   const [currency, setCurrency] = useState(event.currency);
@@ -60,6 +68,16 @@ export function EditEventModal({ event }) {
   const handleRemoveParticipant = async (participantId) => {
     try {
       await updateEvent.mutateAsync({ participants: event.participants.filter((p) => p.id !== participantId) });
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    try {
+      await deleteEvent.mutateAsync(event.id);
+      toast.success(lang === 'he' ? 'האירוע נמחק' : 'Event deleted');
+      navigate('/home');
     } catch (err) {
       toast.error(err.message);
     }
@@ -163,6 +181,34 @@ export function EditEventModal({ event }) {
                 : "Add someone without a phone or account — expenses still split with them, but they can't log into the app."}
             </p>
           </div>
+
+          {canDelete && (
+            <div className="flex flex-col gap-1.5 border-t border-border pt-4">
+              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <DialogTrigger asChild>
+                  <Button type="button" variant="destructive" className="self-start">
+                    <Trash2 className="h-4 w-4" />
+                    {lang === 'he' ? 'מחיקת האירוע' : 'Delete event'}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{lang === 'he' ? `למחוק את "${event.title}"?` : `Delete "${event.title}"?`}</DialogTitle>
+                    <DialogDescription>
+                      {lang === 'he'
+                        ? 'הפעולה מוחקת לצמיתות את כל ההוצאות, ההודעות, הסקרים והתמונות של האירוע עבור כל המשתתפים. לא ניתן לבטל.'
+                        : 'This permanently deletes all expenses, messages, polls, and photos in this event for every participant. This cannot be undone.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="destructive" onClick={handleDeleteEvent} disabled={deleteEvent.isPending}>
+                      {t('action_delete')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="submit" disabled={updateEvent.isPending}>
