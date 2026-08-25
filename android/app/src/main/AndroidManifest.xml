@@ -22,6 +22,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link Google OAuth redirects back into after completing
+                 sign-in in the system browser (see AuthContext.jsx). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.yachloku.app" android:host="auth-callback" />
+            </intent-filter>
+
         </activity>
 
         <provider
