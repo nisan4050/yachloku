@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Pencil, UserPlus, X, Trash2, AlertCircle } from 'lucide-react';
+import { Pencil, UserPlus, X, Trash2, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const CURRENCIES = ['ILS', 'USD', 'EUR', 'GBP'];
@@ -36,7 +38,8 @@ export function EditEventModal({ event }) {
   const [description, setDescription] = useState(event.description ?? '');
   const [currency, setCurrency] = useState(event.currency);
   const [status, setStatus] = useState(event.status);
-  const [newParticipantName, setNewParticipantName] = useState('');
+  const [addFriendsOpen, setAddFriendsOpen] = useState(false);
+  const [bulkNamesInput, setBulkNamesInput] = useState('');
   const [addingParticipant, setAddingParticipant] = useState(false);
   const [mediaCount, setMediaCount] = useState(0);
 
@@ -64,15 +67,25 @@ export function EditEventModal({ event }) {
     }
   };
 
-  const handleAddParticipant = async () => {
-    const name = newParticipantName.trim();
-    if (!name) return;
+  const handleAddFriends = async () => {
+    const names = [...new Set(
+      bulkNamesInput
+        .split('\n')
+        .map((n) => n.trim())
+        .filter(Boolean)
+    )];
+    if (names.length === 0) return;
     setAddingParticipant(true);
     try {
-      const participant = { id: crypto.randomUUID(), name, email: null, user_id: null };
-      await updateEvent.mutateAsync({ participants: [...event.participants, participant] });
-      setNewParticipantName('');
-      toast.success(lang === 'he' ? 'המשתתף/ת נוסף/ה' : 'Participant added');
+      const newParticipants = names.map((name) => ({ id: crypto.randomUUID(), name, email: null, user_id: null }));
+      await updateEvent.mutateAsync({ participants: [...event.participants, ...newParticipants] });
+      setBulkNamesInput('');
+      setAddFriendsOpen(false);
+      toast.success(
+        lang === 'he'
+          ? `${names.length} משתתפים נוספו`
+          : `${names.length} participant${names.length > 1 ? 's' : ''} added`
+      );
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -154,52 +167,83 @@ export function EditEventModal({ event }) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>{lang === 'he' ? 'משתתפים' : 'Participants'}</Label>
-            <div className="flex flex-col gap-1.5 rounded-xl border border-border p-2">
+            <div className="flex items-center justify-between">
+              <Label>{lang === 'he' ? 'משתתפים' : 'Participants'}</Label>
+              <span className="text-xs text-muted-foreground">
+                {event.participants.length} {lang === 'he' ? 'סה״כ' : 'total'}
+              </span>
+            </div>
+            <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-xl border border-border p-1.5">
               {event.participants.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5">
-                  <span className="min-w-0 truncate text-sm text-foreground">{p.name}</span>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {!p.user_id && (
-                      <span className="text-xs text-muted-foreground">{lang === 'he' ? 'בלי חשבון' : 'No account'}</span>
-                    )}
-                    {!p.user_id && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveParticipant(p.id)}
-                        aria-label={lang === 'he' ? 'הסרה' : 'Remove'}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
+                <div key={p.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-muted/60">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="text-xs">{p.name[0]?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{p.name}</span>
+                  {!p.user_id && (
+                    <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
+                      {lang === 'he' ? 'בלי חשבון' : 'No account'}
+                    </Badge>
+                  )}
+                  {!p.user_id && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveParticipant(p.id)}
+                      aria-label={lang === 'he' ? 'הסרה' : 'Remove'}
+                      className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder={lang === 'he' ? 'שם המשתתף/ת' : "Participant's name"}
-                value={newParticipantName}
-                onChange={(e) => setNewParticipantName(e.target.value)}
-                className="placeholder:text-foreground/50"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddParticipant();
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" onClick={handleAddParticipant} disabled={addingParticipant || !newParticipantName.trim()}>
-                <UserPlus className="h-4 w-4" />
-                {lang === 'he' ? 'הוספה' : 'Add'}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {lang === 'he'
-                ? 'מוסיפים אדם בלי טלפון או חשבון — ההוצאות יתחלקו איתו/ה כרגיל, אבל לא יוכל/תוכל להתחבר לאפליקציה.'
-                : "Add someone without a phone or account — expenses still split with them, but they can't log into the app."}
-            </p>
+
+            <Dialog open={addFriendsOpen} onOpenChange={setAddFriendsOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" className="self-start">
+                  <UserPlus className="h-4 w-4" />
+                  {lang === 'he' ? 'הוספת חברים' : 'Add friends'}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{lang === 'he' ? 'הוספת חברים ללא חשבון' : 'Add friends without an account'}</DialogTitle>
+                </DialogHeader>
+                <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900/30 dark:bg-blue-900/20 dark:text-blue-200">
+                  <Info className="h-5 w-5 shrink-0" />
+                  <p className="text-xs">
+                    {lang === 'he'
+                      ? 'זה מיועד רק למי שאין לו/לה טלפון או חשבון. אם החבר/ה מתכוון/ת להתחבר בעצמו/ה מהטלפון שלו/ה, עדיף שיצטרף/תצטרף עם קוד ההזמנה — כך הוא/היא יוכל/תוכל לראות את הטיול ולשוחח בצ׳אט.'
+                      : "This is only for someone without a phone or account. If they plan to log in themselves from their own phone, it's better to have them join with the invite code instead — that way they can see the trip and chat."}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>{lang === 'he' ? 'שמות (שם אחד בכל שורה)' : 'Names (one per line)'}</Label>
+                  <Textarea
+                    autoFocus
+                    rows={5}
+                    value={bulkNamesInput}
+                    onChange={(e) => setBulkNamesInput(e.target.value)}
+                    placeholder={lang === 'he' ? 'דנה כהן\nאבי לוי\nמיכל ברק' : 'Dana Cohen\nAvi Levi\nMichal Barak'}
+                    className="placeholder:text-foreground/50"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setAddFriendsOpen(false)}>
+                    {lang === 'he' ? 'ביטול' : 'Cancel'}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleAddFriends}
+                    disabled={addingParticipant || !bulkNamesInput.trim()}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {lang === 'he' ? 'הוספה' : 'Add'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {canDelete && (

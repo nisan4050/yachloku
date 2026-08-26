@@ -103,7 +103,12 @@ export function AppShell({ children }) {
         </div>
       </header>
 
-      <main className={`mx-auto max-w-6xl flex-1 px-4 py-6 sm:px-6 ${keyboardVisible ? 'pb-6' : 'pb-28'}`}>{children}</main>
+      <main
+        className="mx-auto max-w-6xl flex-1 px-4 py-6 sm:px-6"
+        style={{ paddingBottom: keyboardVisible ? '1.5rem' : 'calc(5rem + env(safe-area-inset-bottom) + 1.25rem)' }}
+      >
+        {children}
+      </main>
 
       <nav
         className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur transition-transform ${
