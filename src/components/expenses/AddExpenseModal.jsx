@@ -65,6 +65,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
   const [useCustomPayerAmounts, setUseCustomPayerAmounts] = useState(false);
   const [customPayerAmounts, setCustomPayerAmounts] = useState({});
   const [receiptFile, setReceiptFile] = useState(null);
+  const [notes, setNotes] = useState('');
 
   const [amountError, setAmountError] = useState(null);
   const [descriptionError, setDescriptionError] = useState(null);
@@ -82,6 +83,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       setCurrency(expense.currency ?? event.currency);
       setCategory(expense.category ?? 'other');
       setDate(expense.date ?? today());
+      setNotes(expense.notes ?? '');
       const payers = (expense.paid_by ?? []).map((p) => p.participant_id);
       setPayerIds(payers);
       setSplitType(expense.split_type ?? 'equal');
@@ -99,6 +101,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
     setCurrency(event.currency);
     setCategory(remembered?.category ?? 'other');
     setDate(today());
+    setNotes('');
     setSplitType(remembered?.splitType ?? 'equal');
     setPayerIds(
       remembered?.payerIds?.filter((id) => participants.some((p) => p.id === id)) ?? (participants[0] ? [participants[0].id] : [])
@@ -233,6 +236,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       split_type: splitType,
       split_between: splitBetween,
       date,
+      notes: notes.trim() || null,
     };
 
     if (isEdit) {
@@ -387,6 +391,17 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{lang === 'he' ? 'הערה (לא חובה)' : 'Note (optional)'}</Label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={lang === 'he' ? 'למשל: ארוחת בוקר בטבריה' : 'E.g. breakfast in Tiberias'}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-foreground/50"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
