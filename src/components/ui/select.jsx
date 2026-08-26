@@ -24,13 +24,18 @@ export const SelectTrigger = forwardRef(({ className, children, ...props }, ref)
 ));
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
-export const SelectContent = forwardRef(({ className, children, position = 'popper', ...props }, ref) => (
+// See dropdown-menu.jsx: keeps the menu clear of the app's fixed bottom nav
+// and safe-area insets, which Radix's own collision detection doesn't know about.
+const SELECT_COLLISION_PADDING = { top: 16, bottom: 96, left: 8, right: 8 };
+
+export const SelectContent = forwardRef(({ className, children, position = 'popper', collisionPadding = SELECT_COLLISION_PADDING, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
       position={position}
+      collisionPadding={collisionPadding}
       className={cn(
-        'relative z-50 max-h-80 min-w-[8rem] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-md',
+        'relative z-50 max-h-[min(20rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-md',
         position === 'popper' && 'translate-y-1',
         className
       )}

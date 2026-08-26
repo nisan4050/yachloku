@@ -38,7 +38,11 @@ export const DialogContent = forwardRef(({ className, children, ...props }, ref)
           // caused an internal horizontal scrollbar. grid-cols-1 gives the
           // column Tailwind's usual minmax(0,1fr) track instead of the
           // unconstrained implicit one `grid` alone produces.
-          'relative grid w-full min-w-0 max-w-lg grid-cols-1 gap-4 rounded-3xl border border-border bg-card p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          // max-h + overflow-y-auto: without a cap, a tall dialog (many fields,
+          // or the on-screen keyboard eating half the viewport) could extend
+          // past the screen with no way to reach its bottom — scroll inside
+          // the dialog itself instead of letting it get clipped.
+          'relative grid max-h-[85dvh] w-full min-w-0 max-w-lg grid-cols-1 gap-4 overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
           className
         )}
         {...props}

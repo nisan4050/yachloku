@@ -10,13 +10,19 @@ export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-export const DropdownMenuContent = forwardRef(({ className, sideOffset = 6, ...props }, ref) => (
+// Keeps the menu clear of the app's fixed bottom nav (h-20 + safe-area) and
+// the OS status bar/notch on every side, so it's never clipped off-screen —
+// Radix's own viewport collision detection doesn't know about our own fixed chrome.
+const MENU_COLLISION_PADDING = { top: 16, bottom: 96, left: 8, right: 8 };
+
+export const DropdownMenuContent = forwardRef(({ className, sideOffset = 6, collisionPadding = MENU_COLLISION_PADDING, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
       className={cn(
-        'z-50 min-w-40 overflow-hidden rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'z-50 min-w-40 max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className
       )}
       {...props}

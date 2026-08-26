@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { CommandPalette } from '@/components/layout/CommandPalette';
+import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 
 const NAV_ITEMS = [
   { to: '/home', icon: Home, key: 'nav_home' },
@@ -28,6 +29,7 @@ export function AppShell({ children }) {
   const { t } = useLang();
   const location = useLocation();
   const navigate = useNavigate();
+  const keyboardVisible = useKeyboardVisible();
 
   const initials = (user?.user_metadata?.full_name || user?.email || '?')[0]?.toUpperCase();
 
@@ -101,10 +103,12 @@ export function AppShell({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6">{children}</main>
+      <main className={`mx-auto max-w-6xl flex-1 px-4 py-6 sm:px-6 ${keyboardVisible ? 'pb-6' : 'pb-28'}`}>{children}</main>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur"
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur transition-transform ${
+          keyboardVisible ? 'translate-y-full' : 'translate-y-0'
+        }`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-around h-20 px-2">
