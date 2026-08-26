@@ -298,6 +298,8 @@ export default function EventDetail() {
                   canManage={expense.created_by === user.id || event.manager_user_id === user.id}
                   onDelete={handleDeleteExpense}
                   onEdit={setEditingExpense}
+                  baseCurrency={event.currency}
+                  rates={rates}
                 />
                 </div>
               ))}

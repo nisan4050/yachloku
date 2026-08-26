@@ -3,6 +3,7 @@ import { motion, useAnimation } from 'framer-motion';
 import { Trash2, Edit2 } from 'lucide-react';
 import { getCategory } from '@/lib/categories';
 import { formatDate } from '@/lib/dateUtils';
+import { convertToBase } from '@/lib/exchangeRates';
 import { useLang } from '@/hooks/useLang';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +18,7 @@ import {
 const SWIPE_REVEAL = 136;
 const SWIPE_HINT_SEEN_KEY = 'yachloku:swipe-hint-seen';
 
-export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canManage }) {
+export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canManage, baseCurrency, rates }) {
   const { lang, dir } = useLang();
   const controls = useAnimation();
   const openRef = useRef(false);
@@ -28,6 +29,12 @@ export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canMa
     .map((p) => participantsById[p.participant_id]?.name)
     .filter(Boolean)
     .join(', ');
+
+  // When this expense was entered in a different currency than the trip's
+  // base one, show the converted amount alongside the original so the split
+  // is understandable at a glance without opening the expense.
+  const isForeignCurrency = baseCurrency && expense.currency && expense.currency !== baseCurrency;
+  const convertedAmount = isForeignCurrency && rates ? convertToBase(expense.amount, expense.currency, rates) : null;
 
   const sign = dir === 'rtl' ? 1 : -1;
 
@@ -112,6 +119,17 @@ export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canMa
         <div className="shrink-0 text-end">
           <p className="font-semibold text-card-foreground">
             {expense.amount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency: expense.currency })}
+            {convertedAmount != null && (
+              <span className="font-semibold">
+                {' '}
+                (
+                {convertedAmount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', {
+                  style: 'currency',
+                  currency: baseCurrency,
+                })}
+                )
+              </span>
+            )}
           </p>
         </div>
         {canManage && (
