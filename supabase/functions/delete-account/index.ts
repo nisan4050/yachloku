@@ -27,7 +27,20 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+// The web/native app calls this directly from the browser (functions.invoke),
+// unlike the project's other functions which are only ever called
+// server-to-server — so unlike those, this one needs to handle the browser's
+// CORS preflight and echo the header on every response.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
   const authHeader = req.headers.get('Authorization') ?? '';
   const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -37,7 +50,7 @@ Deno.serve(async (req) => {
     error: userError,
   } = await callerClient.auth.getUser();
   if (userError || !user) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: CORS_HEADERS });
   }
   const userId = user.id;
 
@@ -48,7 +61,7 @@ Deno.serve(async (req) => {
     .select('id, manager_user_id, participants')
     .filter('participants', 'cs', JSON.stringify([{ user_id: userId }]));
   if (eventsError) {
-    return new Response(JSON.stringify({ error: eventsError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: eventsError.message }), { status: 500, headers: CORS_HEADERS });
   }
 
   for (const event of events ?? []) {
@@ -61,7 +74,7 @@ Deno.serve(async (req) => {
     if (isManager && !nextManager) {
       // No other account-linked participant left to hand the trip to.
       const { error } = await admin.from('events').delete().eq('id', event.id);
-      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS_HEADERS });
       continue;
     }
 
@@ -72,13 +85,15 @@ Deno.serve(async (req) => {
       patch.manager_changed_at = new Date().toISOString();
     }
     const { error } = await admin.from('events').update(patch).eq('id', event.id);
-    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS_HEADERS });
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (deleteError) {
-    return new Response(JSON.stringify({ error: deleteError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: CORS_HEADERS });
   }
 
-  return new Response(JSON.stringify({ deleted: true }), { headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ deleted: true }), {
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
 });

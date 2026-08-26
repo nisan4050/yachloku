@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Settings2, UserPlus, X, Trash2 } from 'lucide-react';
+import { Pencil, UserPlus, X, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
@@ -86,9 +86,13 @@ export function EditEventModal({ event }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon">
-          <Settings2 className="h-4 w-4" />
-        </Button>
+        <button
+          type="button"
+          aria-label={t('action_edit')}
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

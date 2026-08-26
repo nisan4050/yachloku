@@ -31,12 +31,25 @@ export function CrossEventSummary({ events }) {
         </div>
         <div className="flex flex-col gap-1.5 text-sm">
           {data.perEvent.map((e) => (
-            <Link key={e.eventId} to={`/events/${e.eventId}`} className="flex items-center justify-between rounded-xl px-2 py-1 hover:bg-muted">
-              <span className="text-muted-foreground">{e.eventTitle}</span>
-              <span className={e.balance > 0 ? 'text-primary' : 'text-destructive'}>
-                {e.balance > 0 ? '+' : '-'}
-                {formatCurrency(e.balance, e.currency)}
-              </span>
+            <Link key={e.eventId} to={`/events/${e.eventId}`} className="flex flex-col gap-0.5 rounded-xl px-2 py-1 hover:bg-muted">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">{e.eventTitle}</span>
+                <span className={e.balance > 0 ? 'text-primary' : 'text-destructive'}>
+                  {e.balance > 0 ? '+' : '-'}
+                  {formatCurrency(e.balance, e.currency)}
+                </span>
+              </div>
+              {e.owedByPeople?.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {e.owedByPeople
+                    .map((p) =>
+                      lang === 'he'
+                        ? `${p.name} חייב/ת ${formatCurrency(p.amount, e.currency)}`
+                        : `${p.name} owes ${formatCurrency(p.amount, e.currency)}`
+                    )
+                    .join(' · ')}
+                </p>
+              )}
             </Link>
           ))}
         </div>

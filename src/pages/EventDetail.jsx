@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Share2, Plus } from 'lucide-react';
+import { Share2, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useEvent } from '@/hooks/useEvents';
@@ -44,6 +44,7 @@ export default function EventDetail() {
   const deletePayment = useDeletePayment(eventId);
   const deleteExpense = useDeleteExpense(eventId);
   const isManager = event?.manager_user_id === user.id;
+  const isTripClosed = event?.status && event.status !== 'active';
 
   const hasMixedCurrencies = (expenses ?? []).some((e) => event && e.currency !== event.currency);
   const { data: rates } = useExchangeRates(event?.currency, hasMixedCurrencies);
@@ -72,6 +73,10 @@ export default function EventDetail() {
 
   const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
   const { balances, settlements } = getEventBalances(event.participants, balanceExpenses, payments ?? []);
+  const totalExpensesAmount = balanceExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const avgPerParticipant = event.participants.length ? totalExpensesAmount / event.participants.length : 0;
+  const formatMoney = (amount) =>
+    amount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency: event.currency });
   const confirmedSettlements = (payments ?? []).map((p) => ({
     from: p.from_participant_id,
     to: p.to_participant_id,
@@ -79,24 +84,20 @@ export default function EventDetail() {
     paymentId: p.id,
   }));
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(event.invite_code);
-    toast.success(lang === 'he' ? 'הקוד הועתק' : 'Code copied');
-  };
-
   const handleShare = async () => {
-    const shareData = {
-      title: event.title,
-      text: lang === 'he' ? `הצטרפו לטיול "${event.title}" ביחלוקו עם הקוד: ${event.invite_code}` : `Join "${event.title}" on Yachloku with code: ${event.invite_code}`,
-    };
+    const shareText =
+      lang === 'he'
+        ? `הצטרפו לטיול "${event.title}" ביחלוקו עם הקוד: ${event.invite_code}`
+        : `Join "${event.title}" on Yachloku with code: ${event.invite_code}`;
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({ title: event.title, text: shareText });
       } catch {
         // user cancelled
       }
     } else {
-      handleCopyCode();
+      navigator.clipboard.writeText(shareText);
+      toast.success(lang === 'he' ? 'ההזמנה הועתקה — אפשר להדביק ולשלוח לחברים' : 'Invite copied — paste it to send to friends');
     }
   };
 
@@ -161,28 +162,29 @@ export default function EventDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{event.title}</h1>
+              <EditEventModal event={event} />
               <Badge>{event.currency}</Badge>
             </div>
             {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
+            <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+              <span>{lang === 'he' ? `סה״כ הוצאות: ${formatMoney(totalExpensesAmount)}` : `Total spent: ${formatMoney(totalExpensesAmount)}`}</span>
+              <span>{lang === 'he' ? `ממוצע לאדם: ${formatMoney(avgPerParticipant)}` : `Avg. per person: ${formatMoney(avgPerParticipant)}`}</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <TripRecapModal event={event} expenses={visibleExpenses} />
-          <Button variant="outline" onClick={handleCopyCode}>
-            <Copy className="h-4 w-4" />
-            {event.invite_code}
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleShare}>
+          <Button variant="outline" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
+            {lang === 'he' ? 'הזמנת חברים' : 'Invite friends'}
           </Button>
-          <EditEventModal event={event} />
         </div>
       </div>
 
       <Tabs defaultValue="expenses" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-auto w-full flex-wrap justify-center sm:w-auto">
           <TabsTrigger value="expenses">{lang === 'he' ? 'הוצאות' : 'Expenses'}</TabsTrigger>
-          <TabsTrigger value="balances">{lang === 'he' ? 'איזון חשבון' : 'Balances'}</TabsTrigger>
+          <TabsTrigger value="balances">{lang === 'he' ? 'מי למי' : 'Who owes'}</TabsTrigger>
           <TabsTrigger value="group-chat">{lang === 'he' ? 'צ׳אט כללי' : 'Group chat'}</TabsTrigger>
           <TabsTrigger value="private-chat">{lang === 'he' ? 'צ׳אט אישי' : 'Private chat'}</TabsTrigger>
           <TabsTrigger value="photos">{lang === 'he' ? 'תמונות' : 'Photos'}</TabsTrigger>
@@ -192,18 +194,27 @@ export default function EventDetail() {
 
         <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
         <TabsContent value="expenses">
+          {isTripClosed && (
+            <p className="mb-3 rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+              {lang === 'he'
+                ? 'הטיול סגור לעריכה. רק המנהל/ת יכול/ה לפתוח אותו מחדש (מתוך סיכום הטיול).'
+                : 'This trip is closed for editing. Only the manager can reopen it (from the trip recap).'}
+            </p>
+          )}
           <div className="mb-3 flex items-center justify-between gap-2">
             <ExpenseFilterBar filters={filters} onChange={setFilters} />
-            <AddExpenseModal
-              event={event}
-              userId={user.id}
-              trigger={
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  {t('action_add_expense')}
-                </Button>
-              }
-            />
+            {!isTripClosed && (
+              <AddExpenseModal
+                event={event}
+                userId={user.id}
+                trigger={
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                    {t('action_add_expense')}
+                  </Button>
+                }
+              />
+            )}
           </div>
           {!expenses || expenses.length === 0 ? (
             <EmptyState icon="🧾" title={t('empty_expenses_title')} subtitle={t('empty_expenses_subtitle')} />
@@ -289,9 +300,11 @@ export default function EventDetail() {
         </AnimatePresence>
       </Tabs>
 
-      <Fab onClick={() => setFabModalOpen(true)} title={t('action_add_expense')}>
-        <Plus className="h-6 w-6" />
-      </Fab>
+      {!isTripClosed && (
+        <Fab onClick={() => setFabModalOpen(true)} title={t('action_add_expense')}>
+          <Plus className="h-6 w-6" />
+        </Fab>
+      )}
       <AddExpenseModal event={event} userId={user.id} open={fabModalOpen} onOpenChange={setFabModalOpen} />
       <AddExpenseModal
         event={event}

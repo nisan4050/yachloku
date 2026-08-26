@@ -13,10 +13,11 @@ const STATUS_LABEL = {
 
 export function EventCard({ event }) {
   const { lang } = useLang();
+  const isActive = event.status === 'active';
 
   return (
     <Link to={`/events/${event.id}`}>
-      <Card className="transition-transform hover:-translate-y-0.5 hover:shadow-md">
+      <Card className={`transition-transform hover:-translate-y-0.5 hover:shadow-md ${!isActive ? 'opacity-60 grayscale-[0.4]' : ''}`}>
         <CardContent className="flex items-center gap-4 p-5">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-3xl">
             {event.icon || '🧳'}

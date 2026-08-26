@@ -24,12 +24,18 @@ export function useCrossEventBalance(events, userId) {
             supabase.from('payments').select('*').eq('event_id', event.id),
           ]);
 
-          const { balances } = getEventBalances(event.participants, expenses ?? [], payments ?? []);
+          const { balances, settlements } = getEventBalances(event.participants, expenses ?? [], payments ?? []);
+          const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
+          const owedByPeople = settlements
+            .filter((s) => s.to === me.id)
+            .map((s) => ({ name: participantsById[s.from]?.name ?? '?', amount: s.amount }));
+
           return {
             eventId: event.id,
             eventTitle: event.title,
             currency: event.currency,
             balance: balances[me.id] ?? 0,
+            owedByPeople,
           };
         })
       );

@@ -34,9 +34,19 @@ export function useOfflineSync() {
       }
     };
 
-    if (navigator.onLine) flush();
+    // `navigator.onLine` and the `online` event are unreliable on Android
+    // WebViews — a brief flakiness can queue an expense that never gets
+    // flushed if the event never fires. Retry periodically and on every
+    // foreground as a self-healing backstop, not just those two signals.
+    flush();
     window.addEventListener('online', flush);
-    return () => window.removeEventListener('online', flush);
+    document.addEventListener('visibilitychange', flush);
+    const interval = setInterval(flush, 20000);
+    return () => {
+      window.removeEventListener('online', flush);
+      document.removeEventListener('visibilitychange', flush);
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

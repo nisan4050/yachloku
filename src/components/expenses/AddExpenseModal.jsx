@@ -161,6 +161,11 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
     const file = e.target.files?.[0];
     if (!file) return;
     setReceiptFile(file);
+    toast(
+      lang === 'he'
+        ? 'הקבלה תצורף לאחר שמירת ההוצאה, ותופיע בתיקיית התמונות'
+        : 'The receipt will attach once you save the expense, and will then show up in the Photos tab'
+    );
   };
 
   const handleAmountChange = (value) => {
@@ -245,15 +250,6 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       return;
     }
 
-    if (!navigator.onLine) {
-      await enqueueExpense({ ...expensePayload, event_id: event.id, created_by: userId });
-      rememberSplit(event.id, { payerIds, splitType, includedIds, category });
-      toast.success(lang === 'he' ? 'אין חיבור — ההוצאה תסונכרן אוטומטית כשיחזור' : 'Offline — this will sync automatically once you reconnect');
-      reset();
-      setOpen(false);
-      return;
-    }
-
     try {
       let receiptUrl = null;
       if (receiptFile) {
@@ -276,6 +272,19 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
       reset();
       setOpen(false);
     } catch (err) {
+      // A genuine network failure (as opposed to a validation/RLS error the
+      // server actually responded with) — `navigator.onLine` is unreliable
+      // for deciding this upfront, so we only fall back to the offline
+      // queue once a real request has actually failed to reach the server.
+      const isNetworkFailure = err instanceof TypeError || !navigator.onLine;
+      if (isNetworkFailure) {
+        await enqueueExpense({ ...expensePayload, event_id: event.id, created_by: userId });
+        rememberSplit(event.id, { payerIds, splitType, includedIds, category });
+        toast.success(lang === 'he' ? 'אין חיבור — ההוצאה תסונכרן אוטומטית כשיחזור' : 'Offline — this will sync automatically once you reconnect');
+        reset();
+        setOpen(false);
+        return;
+      }
       toast.error(err.message);
     }
   };

@@ -1,17 +1,46 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Download, Share2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Sparkles, Download, Share2, ArrowRight, ArrowLeft, Lock, LockOpen } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { getCategory } from '@/lib/categories';
 import { usePayments, getEventBalances } from '@/hooks/useExpenses';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { useUpdateEvent } from '@/hooks/useEvents';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 export function TripRecapModal({ event, expenses }) {
+  const { user } = useAuth();
   const { lang, dir } = useLang();
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const cardRef = useRef(null);
   const { data: payments } = usePayments(event.id);
+  const updateEvent = useUpdateEvent(event.id);
+  const isManager = event.manager_user_id === user.id;
+  const isClosed = event.status === 'settled';
+
+  const handleToggleClosed = async () => {
+    try {
+      await updateEvent.mutateAsync({ status: isClosed ? 'active' : 'settled' });
+      toast.success(
+        isClosed
+          ? lang === 'he' ? 'הטיול נפתח מחדש לעריכה' : 'Trip reopened for editing'
+          : lang === 'he' ? 'הטיול נסגר לעריכה' : 'Trip closed for editing'
+      );
+      setConfirmOpen(false);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
   const average = event.participants.length > 0 ? total / event.participants.length : 0;
@@ -79,50 +108,50 @@ export function TripRecapModal({ event, expenses }) {
           {lang === 'he' ? 'סיכום טיול' : 'Trip recap'}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm p-3 sm:p-6">
         <div
           ref={cardRef}
-          className="flex flex-col gap-4 rounded-3xl bg-gradient-to-br from-primary to-secondary p-6 text-primary-foreground"
+          className="flex min-w-0 flex-col gap-3 rounded-3xl bg-gradient-to-br from-primary to-secondary p-4 text-primary-foreground"
         >
           <div className="text-center">
             <div className="text-3xl">{event.icon}</div>
             <h3 className="mt-1 text-xl font-bold">{event.title}</h3>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/15 p-4 text-center backdrop-blur">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="min-w-0 rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
               <p className="text-xs opacity-80">{lang === 'he' ? 'סה״כ הוצאות' : 'Total spent'}</p>
-              <p className="text-2xl font-extrabold">{formatCurrency(total)}</p>
+              <p className="text-xl font-extrabold">{formatCurrency(total)}</p>
             </div>
-            <div className="rounded-2xl bg-white/15 p-4 text-center backdrop-blur">
+            <div className="min-w-0 rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
               <p className="text-xs opacity-80">{lang === 'he' ? 'ממוצע לאדם' : 'Average per person'}</p>
-              <p className="text-2xl font-extrabold">{formatCurrency(average)}</p>
+              <p className="text-xl font-extrabold">{formatCurrency(average)}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             {topCategory && (
-              <div className="rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
+              <div className="min-w-0 rounded-2xl bg-white/15 p-2.5 text-center backdrop-blur">
                 <p className="text-xs opacity-80">{lang === 'he' ? 'קטגוריה מובילה' : 'Top category'}</p>
-                <p className="font-semibold">{topCategory.name}</p>
+                <p className="truncate font-semibold">{topCategory.name}</p>
                 <p className="text-xs opacity-80">{formatCurrency(topCategory.value)}</p>
               </div>
             )}
             {topPayer && (
-              <div className="rounded-2xl bg-white/15 p-3 text-center backdrop-blur">
+              <div className="min-w-0 rounded-2xl bg-white/15 p-2.5 text-center backdrop-blur">
                 <p className="text-xs opacity-80">{lang === 'he' ? 'שילם/ה הכי הרבה' : 'Biggest spender'}</p>
-                <p className="font-semibold">{topPayer.name}</p>
+                <p className="truncate font-semibold">{topPayer.name}</p>
                 <p className="text-xs opacity-80">{formatCurrency(topPayer.value)}</p>
               </div>
             )}
           </div>
 
           {settlements.length > 0 && (
-            <div className="rounded-2xl bg-white/15 p-3 backdrop-blur">
+            <div className="min-w-0 rounded-2xl bg-white/15 p-2.5 backdrop-blur">
               <p className="mb-2 text-xs opacity-80">{lang === 'he' ? 'מי חייב למי' : 'Who owes whom'}</p>
               <div className="flex flex-col gap-1.5">
                 {settlements.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                  <div key={i} className="flex min-w-0 items-center justify-between gap-2 text-sm">
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate font-medium">{participantsById[s.from]?.name}</span>
                       <ArrowIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
@@ -151,6 +180,44 @@ export function TripRecapModal({ event, expenses }) {
             {lang === 'he' ? 'שיתוף' : 'Share'}
           </Button>
         </div>
+
+        {isManager && (
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full">
+                {isClosed ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {isClosed
+                  ? lang === 'he' ? 'פתיחת הטיול מחדש' : 'Reopen trip'
+                  : lang === 'he' ? 'סיום הטיול' : 'End trip'}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isClosed
+                    ? lang === 'he' ? 'לפתוח את הטיול מחדש?' : 'Reopen this trip?'
+                    : lang === 'he' ? 'לסיים את הטיול?' : 'End this trip?'}
+                </DialogTitle>
+                <DialogDescription>
+                  {isClosed
+                    ? lang === 'he'
+                      ? 'הטיול ייפתח שוב לעריכה — אפשר יהיה להוסיף ולשנות הוצאות.'
+                      : 'The trip becomes editable again — expenses can be added and changed.'
+                    : lang === 'he'
+                      ? 'הטיול ייסגר לעריכה ויעבור לתחתית הרשימה. אפשר לפתוח אותו מחדש בכל עת.'
+                      : 'The trip closes for editing and moves to the bottom of the list. You can reopen it anytime.'}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button onClick={handleToggleClosed} disabled={updateEvent.isPending}>
+                  {isClosed
+                    ? lang === 'he' ? 'פתיחה מחדש' : 'Reopen'
+                    : lang === 'he' ? 'סיום הטיול' : 'End trip'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );

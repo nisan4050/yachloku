@@ -60,9 +60,11 @@ export default function Home() {
 
       {!isLoading && events && events.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          {[...events]
+            .sort((a, b) => (a.status === 'active') === (b.status === 'active') ? 0 : a.status === 'active' ? -1 : 1)
+            .map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
         </div>
       )}
     </div>

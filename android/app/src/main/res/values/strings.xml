@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">yachloku</string>
-    <string name="title_activity_main">yachloku</string>
+    <string name="app_name">יחלוקו</string>
+    <string name="title_activity_main">יחלוקו</string>
     <string name="package_name">com.yachloku.app</string>
     <string name="custom_url_scheme">com.yachloku.app</string>
 </resources>

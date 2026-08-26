@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Paperclip, Send, Loader2, Mail } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useTheme } from '@/hooks/useTheme';
 import { useAccessibility } from '@/hooks/useAccessibility';
-import { useProfile, useUpdateNotificationPrefs, useUpdatePhone } from '@/hooks/useNotificationPrefs';
+import { useProfile, useUpdateNotificationPrefs } from '@/hooks/useNotificationPrefs';
 import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '@/lib/notificationManager';
 import { submitFeedback } from '@/api/feedback';
 import { deleteAccount } from '@/api/account';
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 
 const DEVELOPER_EMAIL = 'nisan4050@gmail.com';
+const DELETE_CONFIRM_WORD = { he: 'מחק', en: 'DELETE' };
 
 const FONT_SCALE_LABEL = {
   sm: { he: 'קטן', en: 'Small' },
@@ -52,24 +53,13 @@ export default function Settings() {
   const [feedbackFile, setFeedbackFile] = useState(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const feedbackFileRef = useRef(null);
 
   const { data: profile } = useProfile(user.id);
   const updatePrefs = useUpdateNotificationPrefs(user.id);
-  const updatePhone = useUpdatePhone(user.id);
-  const [phone, setPhone] = useState('');
   const prefs = profile?.notification_prefs ?? { chat: true, expenses: true, balance_changes: true, daily_digest: false };
-
-  useEffect(() => {
-    if (profile?.phone) setPhone(profile.phone);
-  }, [profile?.phone]);
-
-  const handleSavePhone = () => {
-    updatePhone.mutate(phone.trim() || null, {
-      onSuccess: () => toast.success(lang === 'he' ? 'המספר נשמר' : 'Phone number saved'),
-      onError: (err) => toast.error(err.message),
-    });
-  };
 
   const handleTogglePush = async (checked) => {
     try {
@@ -135,21 +125,6 @@ export default function Settings() {
             <p className="text-muted-foreground">{t('email')}</p>
             <p className="font-medium text-foreground">{user?.email}</p>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="phone-input">{lang === 'he' ? 'טלפון (לתשלומים דרך ביט וכו׳)' : 'Phone (for Bit payments, etc.)'}</Label>
-            <div className="flex gap-2">
-              <Input
-                id="phone-input"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="050-1234567"
-              />
-              <Button type="button" variant="outline" onClick={handleSavePhone} disabled={updatePhone.isPending}>
-                {t('action_save')}
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -178,6 +153,11 @@ export default function Settings() {
       <Card>
         <CardHeader>
           <CardTitle>{lang === 'he' ? 'התראות — מה לקבל' : 'Notifications — what to receive'}</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {lang === 'he'
+              ? 'העדפה בתוך האפליקציה בלבד — לא מפעילה או מכבה התראות ברמת המכשיר.'
+              : "An in-app preference only — it doesn't turn device-level notifications on or off."}
+          </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {NOTIFICATION_TOGGLES.map(({ key, he, en }) => (
@@ -259,7 +239,13 @@ export default function Settings() {
         {t('logout')}
       </Button>
 
-      <Dialog>
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteConfirmText('');
+        }}
+      >
         <DialogTrigger asChild>
           <Button variant="destructive">{lang === 'he' ? 'מחיקת חשבון' : 'Delete account'}</Button>
         </DialogTrigger>
@@ -272,8 +258,25 @@ export default function Settings() {
                 : 'This removes you from every event and permanently deletes your account. This cannot be undone.'}
             </DialogDescription>
           </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="delete-confirm-input">
+              {lang === 'he'
+                ? `הקלידו "${DELETE_CONFIRM_WORD.he}" כדי לאשר`
+                : `Type "${DELETE_CONFIRM_WORD.en}" to confirm`}
+            </Label>
+            <Input
+              id="delete-confirm-input"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
           <DialogFooter>
-            <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount || deleteConfirmText !== DELETE_CONFIRM_WORD[lang]}
+            >
               {deletingAccount && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('action_delete')}
             </Button>
