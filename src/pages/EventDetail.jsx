@@ -230,13 +230,13 @@ export default function EventDetail() {
               <Badge>{event.currency}</Badge>
             </div>
             {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
-            <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-              <span>{lang === 'he' ? `סה״כ הוצאות: ${formatMoney(totalExpensesAmount)}` : `Total spent: ${formatMoney(totalExpensesAmount)}`}</span>
-              <span>{lang === 'he' ? `ממוצע לאדם: ${formatMoney(avgPerParticipant)}` : `Avg. per person: ${formatMoney(avgPerParticipant)}`}</span>
-            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
+            <span>{lang === 'he' ? `סה״כ הוצאות: ${formatMoney(totalExpensesAmount)}` : `Total spent: ${formatMoney(totalExpensesAmount)}`}</span>
+            <span>{lang === 'he' ? `ממוצע לאדם: ${formatMoney(avgPerParticipant)}` : `Avg. per person: ${formatMoney(avgPerParticipant)}`}</span>
+          </div>
           <TripRecapModal event={event} expenses={visibleExpenses} />
           <Button variant="outline" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
