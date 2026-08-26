@@ -15,15 +15,18 @@ import {
   Copy,
   Pin,
   MapPin,
+  Play,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { formatChatTimestamp } from '@/lib/dateUtils';
 import { formatBytes, buildStoragePath } from '@/lib/utils';
 import { uploadWithProgress } from '@/lib/storageUpload';
-import { isImageUrl } from '@/api/chat';
+import { isImageUrl, isVideoUrl } from '@/api/chat';
+import { MediaLightbox } from '@/components/events/MediaLightbox';
 import { notifyEventMembers } from '@/api/notifications';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -70,7 +73,7 @@ function renderMessageContent(text) {
   return nodes;
 }
 
-export function PrivateChatThread({ event, otherParticipant, onBack }) {
+export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMessageId }) {
   const { user } = useAuth();
   const { lang, dir } = useLang();
   const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft;
@@ -86,6 +89,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [lightboxMessage, setLightboxMessage] = useState(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -156,8 +160,17 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
   }, [event.id, me?.id, otherParticipant.id, user.id]);
 
   useEffect(() => {
+    if (scrollToMessageId) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!scrollToMessageId || !messages.some((m) => m.id === scrollToMessageId)) return;
+    setTimeout(() => {
+      document.getElementById(`dm-${scrollToMessageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   useEffect(() => {
     const channel = supabase
@@ -238,7 +251,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
         payload.location = { lat: pendingAttachment.lat, lng: pendingAttachment.lng };
       }
 
-      const { error } = await supabase.from('chat_messages').insert(payload);
+      const { data: inserted, error } = await supabase.from('chat_messages').insert(payload).select().single();
       if (error) throw error;
 
       notifyEventMembers({
@@ -253,6 +266,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
             : pendingAttachment
               ? `📎 ${pendingAttachment.file.name}`
               : ''),
+        data: { tab: 'private-chat', with: me.id, msg: inserted.id },
       });
 
       setText('');
@@ -298,17 +312,23 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
     setMenuOpenId(null);
   };
 
-  const handleShareLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error(lang === 'he' ? 'המיקום אינו נתמך בדפדפן זה' : 'Geolocation is not supported');
-      return;
+  const handleShareLocation = async () => {
+    try {
+      const current = await Geolocation.checkPermissions();
+      let status = current.location;
+      if (status === 'prompt' || status === 'prompt-with-rationale') {
+        status = (await Geolocation.requestPermissions()).location;
+      }
+      if (status !== 'granted') {
+        toast.error(lang === 'he' ? 'צריך הרשאת מיקום כדי לשתף' : 'Location permission is needed to share');
+        return;
+      }
+      toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch {
+      toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location');
     }
-    toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   const handleFileSelect = (e) => {
@@ -462,6 +482,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
             const isMine = m.from_user_id === user.id;
             const repliedMessage = m.reply_to_id ? messages.find((x) => x.id === m.reply_to_id) : null;
             const isImage = m.media_url && isImageUrl(m.media_url, m.media_meta?.type);
+            const isVideo = m.media_url && isVideoUrl(m.media_url, m.media_meta?.type);
             const canEditMine = isMine && m.content != null;
 
             return (
@@ -497,14 +518,21 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
 
                     {m.media_url &&
                       (isImage ? (
-                        <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                        <button type="button" onClick={() => setLightboxMessage(m)} className="block w-full">
                           <img
                             src={m.media_url}
                             alt={m.media_meta?.name || 'shared image'}
                             className="max-h-64 w-full rounded-lg object-cover"
                             loading="lazy"
                           />
-                        </a>
+                        </button>
+                      ) : isVideo ? (
+                        <button type="button" onClick={() => setLightboxMessage(m)} className="relative block w-full">
+                          <video src={m.media_url} className="max-h-64 w-full rounded-lg object-cover" muted />
+                          <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                            <Play className="h-10 w-10 fill-white text-white" />
+                          </span>
+                        </button>
                       ) : (
                         <a
                           href={m.media_url}
@@ -723,6 +751,27 @@ export function PrivateChatThread({ event, otherParticipant, onBack }) {
           </Button>
         </div>
       </form>
+
+      {lightboxMessage && (
+        <MediaLightbox
+          items={[
+            {
+              url: lightboxMessage.media_url,
+              type: isVideoUrl(lightboxMessage.media_url, lightboxMessage.media_meta?.type) ? 'video' : 'image',
+              name: lightboxMessage.media_meta?.name,
+              size: lightboxMessage.media_meta?.size,
+              uploaded_by_participant_id: lightboxMessage.from_participant_id,
+              uploaded_at: lightboxMessage.created_at,
+            },
+          ]}
+          index={0}
+          onIndexChange={() => {}}
+          onClose={() => setLightboxMessage(null)}
+          onDownload={(item) => window.open(item.url, '_blank', 'noopener,noreferrer')}
+          participantsById={{ [me?.id]: me, [otherParticipant.id]: otherParticipant }}
+          canManage={false}
+        />
+      )}
     </div>
   );
 }

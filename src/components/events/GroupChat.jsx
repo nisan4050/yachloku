@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Send,
   MoreVertical,
@@ -13,8 +13,10 @@ import {
   Copy,
   Pin,
   MapPin,
+  Play,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
@@ -22,7 +24,8 @@ import { formatChatTimestamp } from '@/lib/dateUtils';
 import { formatBytes, buildStoragePath } from '@/lib/utils';
 import { uploadWithProgress } from '@/lib/storageUpload';
 import { usePolls } from '@/hooks/usePolls';
-import { isImageUrl } from '@/api/chat';
+import { isImageUrl, isVideoUrl } from '@/api/chat';
+import { MediaLightbox } from '@/components/events/MediaLightbox';
 import { notifyEventMembers } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,7 +95,7 @@ const replaceMentions = (text, participantsById) => {
   return result;
 };
 
-export function GroupChat({ event }) {
+export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   const { user } = useAuth();
   const { lang } = useLang();
   const [messages, setMessages] = useState([]);
@@ -107,6 +110,7 @@ export function GroupChat({ event }) {
   const [sending, setSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [lightboxMessage, setLightboxMessage] = useState(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -117,7 +121,6 @@ export function GroupChat({ event }) {
   const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
   const isManager = event.manager_user_id === user.id;
   const { data: polls } = usePolls(event.id);
-  const openPolls = (polls ?? []).filter((p) => !p.closed);
 
   const EVERYONE_MENTION = { id: '__everyone__', name: lang === 'he' ? 'כולם' : 'everyone' };
   const mentionMatch = /(?:^|\s)@([^\s@]*)$/.exec(text);
@@ -166,8 +169,20 @@ export function GroupChat({ event }) {
   }, [event.id]);
 
   useEffect(() => {
+    if (scrollToMessageId || scrollToPollId) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!scrollToMessageId && !scrollToPollId) return;
+    if (scrollToMessageId && !messages.some((m) => m.id === scrollToMessageId)) return;
+    if (scrollToPollId && !(polls ?? []).some((p) => p.id === scrollToPollId)) return;
+    const targetId = scrollToMessageId ? `msg-${scrollToMessageId}` : `poll-${scrollToPollId}`;
+    setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, polls]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -213,22 +228,49 @@ export function GroupChat({ event }) {
         payload.location = { lat: pendingAttachment.lat, lng: pendingAttachment.lng };
       }
 
-      const { error } = await supabase.from('group_messages').insert(payload);
+      const { data: inserted, error } = await supabase.from('group_messages').insert(payload).select().single();
       if (error) throw error;
 
-      notifyEventMembers({
-        event,
-        excludeUserId: user.id,
-        type: 'chat',
-        title: `${me.name} · ${event.title}`,
-        body:
-          payload.content ||
-          (pendingAttachment?.kind === 'location'
-            ? `📍 ${lang === 'he' ? 'מיקום' : 'Location'}`
-            : pendingAttachment
-              ? `📎 ${pendingAttachment.file.name}`
-              : ''),
-      });
+      const notifData = { tab: 'group-chat', msg: inserted.id };
+      const bodyText =
+        rawContent ||
+        (pendingAttachment?.kind === 'location'
+          ? `📍 ${lang === 'he' ? 'מיקום' : 'Location'}`
+          : pendingAttachment
+            ? `📎 ${pendingAttachment.file.name}`
+            : '');
+
+      const everyoneMentioned = /(?:^|\s)@everyone\b/.test(rawContent);
+      const mentionedParticipantIds = [...(payload.content ?? '').matchAll(/<@([^>]+)>/g)].map((m) => m[1]);
+      const mentionedUserIds = everyoneMentioned
+        ? event.participants.filter((p) => p.user_id).map((p) => p.user_id)
+        : mentionedParticipantIds.map((id) => participantsById[id]?.user_id).filter(Boolean);
+
+      if (mentionedUserIds.length > 0) {
+        notifyEventMembers({
+          event,
+          excludeUserId: user.id,
+          type: 'mention',
+          onlyUserIds: mentionedUserIds,
+          title: `${me.name} תייג/ה אותך · ${event.title}`,
+          body: bodyText,
+          data: notifData,
+        });
+      }
+      const restUserIds = event.participants
+        .filter((p) => p.user_id && p.user_id !== user.id && !mentionedUserIds.includes(p.user_id))
+        .map((p) => p.user_id);
+      if (restUserIds.length > 0) {
+        notifyEventMembers({
+          event,
+          excludeUserId: user.id,
+          type: 'chat',
+          onlyUserIds: restUserIds,
+          title: `${me.name} · ${event.title}`,
+          body: bodyText,
+          data: notifData,
+        });
+      }
 
       setText('');
       setPendingAttachment(null);
@@ -273,17 +315,23 @@ export function GroupChat({ event }) {
     setMenuOpenId(null);
   };
 
-  const handleShareLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error(lang === 'he' ? 'המיקום אינו נתמך בדפדפן זה' : 'Geolocation is not supported');
-      return;
+  const handleShareLocation = async () => {
+    try {
+      const current = await Geolocation.checkPermissions();
+      let status = current.location;
+      if (status === 'prompt' || status === 'prompt-with-rationale') {
+        status = (await Geolocation.requestPermissions()).location;
+      }
+      if (status !== 'granted') {
+        toast.error(lang === 'he' ? 'צריך הרשאת מיקום כדי לשתף' : 'Location permission is needed to share');
+        return;
+      }
+      toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch {
+      toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location');
     }
-    toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   const selectMention = (participant) => {
@@ -395,6 +443,14 @@ export function GroupChat({ event }) {
     .sort((a, b) => new Date(b.pinned_at) - new Date(a.pinned_at));
   const pinnedMessage = pinnedMessages[0];
 
+  // Polls render inline in the conversation, in chronological order with
+  // messages, instead of pinned in their own block above the thread.
+  const timelineItems = useMemo(() => {
+    const msgItems = visibleMessages.map((m) => ({ type: 'message', id: m.id, created_at: m.created_at, data: m }));
+    const pollItems = searchQuery ? [] : (polls ?? []).map((p) => ({ type: 'poll', id: p.id, created_at: p.created_at, data: p }));
+    return [...msgItems, ...pollItems].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }, [visibleMessages, polls, searchQuery]);
+
   const scrollToMessage = (id) => {
     document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
@@ -443,7 +499,7 @@ export function GroupChat({ event }) {
               <Search className="h-4 w-4" />
               {lang === 'he' ? 'חיפוש' : 'Search'}
             </button>
-            <CreatePollModal eventId={event.id} />
+            <CreatePollModal eventId={event.id} event={event} />
           </>
         )}
       </div>
@@ -476,14 +532,7 @@ export function GroupChat({ event }) {
       )}
 
       <div className="flex-1 overflow-y-auto p-4">
-        {!searchQuery && openPolls.length > 0 && (
-          <div className="mb-3 flex flex-col gap-2">
-            {openPolls.map((poll) => (
-              <PollCard key={poll.id} poll={poll} eventId={event.id} isManager={isManager} />
-            ))}
-          </div>
-        )}
-        {!loading && visibleMessages.length === 0 && (
+        {!loading && timelineItems.length === 0 && (
           <EmptyState
             icon={searchQuery ? '🔍' : '💬'}
             title={
@@ -498,11 +547,20 @@ export function GroupChat({ event }) {
           />
         )}
         <div className="flex flex-col gap-3">
-          {visibleMessages.map((m) => {
+          {timelineItems.map((item) => {
+            if (item.type === 'poll') {
+              return (
+                <div key={`poll-${item.id}`} id={`poll-${item.id}`} className="scroll-mt-4">
+                  <PollCard poll={item.data} eventId={event.id} isManager={isManager} />
+                </div>
+              );
+            }
+            const m = item.data;
             const isMine = m.from_user_id === user.id;
             const author = participantsById[m.from_participant_id];
             const repliedMessage = m.reply_to_id ? messages.find((x) => x.id === m.reply_to_id) : null;
             const isImage = m.media_url && isImageUrl(m.media_url, m.media_meta?.type);
+            const isVideo = m.media_url && isVideoUrl(m.media_url, m.media_meta?.type);
 
             const canEditMine = isMine && m.content != null;
             const canManageMessage = isMine || isManager;
@@ -542,14 +600,21 @@ export function GroupChat({ event }) {
 
                     {m.media_url &&
                       (isImage ? (
-                        <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                        <button type="button" onClick={() => setLightboxMessage(m)} className="block w-full">
                           <img
                             src={m.media_url}
                             alt={m.media_meta?.name || 'shared image'}
                             className="max-h-64 w-full rounded-lg object-cover"
                             loading="lazy"
                           />
-                        </a>
+                        </button>
+                      ) : isVideo ? (
+                        <button type="button" onClick={() => setLightboxMessage(m)} className="relative block w-full">
+                          <video src={m.media_url} className="max-h-64 w-full rounded-lg object-cover" muted />
+                          <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                            <Play className="h-10 w-10 fill-white text-white" />
+                          </span>
+                        </button>
                       ) : (
                         <a
                           href={m.media_url}
@@ -790,6 +855,27 @@ export function GroupChat({ event }) {
           </Button>
         </div>
       </form>
+
+      {lightboxMessage && (
+        <MediaLightbox
+          items={[
+            {
+              url: lightboxMessage.media_url,
+              type: isVideoUrl(lightboxMessage.media_url, lightboxMessage.media_meta?.type) ? 'video' : 'image',
+              name: lightboxMessage.media_meta?.name,
+              size: lightboxMessage.media_meta?.size,
+              uploaded_by_participant_id: lightboxMessage.from_participant_id,
+              uploaded_at: lightboxMessage.created_at,
+            },
+          ]}
+          index={0}
+          onIndexChange={() => {}}
+          onClose={() => setLightboxMessage(null)}
+          onDownload={(item) => window.open(item.url, '_blank', 'noopener,noreferrer')}
+          participantsById={participantsById}
+          canManage={false}
+        />
+      )}
     </div>
   );
 }

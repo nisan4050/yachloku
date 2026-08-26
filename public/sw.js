@@ -49,13 +49,15 @@ self.addEventListener('push', (event) => {
     payload = { title: 'יחלוקו', body: event.data.text() };
   }
 
-  const { title = 'יחלוקו', body, icon = '/icons/icon-192.png', url = '/' } = payload;
+  const { title = 'יחלוקו', body, icon = '/icons/icon-192.png', url = '/', tag = 'general' } = payload;
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon,
       badge: '/icons/icon-192.png',
+      tag,
+      renotify: true,
       data: { url },
     })
   );

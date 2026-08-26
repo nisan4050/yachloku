@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Share2, Plus } from 'lucide-react';
@@ -31,11 +31,31 @@ export default function EventDetail() {
   const { eventId } = useParams();
   const { user } = useAuth();
   const { lang, t } = useLang();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkTab = searchParams.get('tab');
+  const deepLinkMsg = searchParams.get('msg');
+  const deepLinkPoll = searchParams.get('poll');
+  const deepLinkExpense = searchParams.get('expense');
+  const deepLinkWith = searchParams.get('with');
   const [fabModalOpen, setFabModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [filters, setFilters] = useState({ text: '', category: FILTER_ALL_CATEGORIES });
-  const [activeTab, setActiveTab] = useState('expenses');
+  const [activeTab, setActiveTab] = useState(deepLinkTab ?? 'expenses');
   const { pendingIds, scheduleDelete } = usePendingDeletes();
+
+  // Deep link from a notification tap — consume the query params once so
+  // re-navigating within the page (switching tabs manually) doesn't keep
+  // re-triggering the scroll/highlight.
+  useEffect(() => {
+    if (!deepLinkTab && !deepLinkMsg && !deepLinkPoll && !deepLinkExpense && !deepLinkWith) return;
+    setSearchParams({}, { replace: true });
+    if (deepLinkExpense) {
+      setTimeout(() => {
+        document.getElementById(`expense-${deepLinkExpense}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: event, isLoading: eventLoading } = useEvent(eventId);
   const { data: expenses } = useExpenses(eventId);
@@ -126,6 +146,7 @@ export default function EventDetail() {
           lang === 'he'
             ? `${participantsById[settlement.from]?.name} סגר/ה חוב של ${amountLabel} מול ${participantsById[settlement.to]?.name}`
             : `${participantsById[settlement.from]?.name} settled ${amountLabel} with ${participantsById[settlement.to]?.name}`,
+        data: { tab: 'balances' },
       });
     } catch (err) {
       toast.error(err.message);
@@ -184,7 +205,7 @@ export default function EventDetail() {
       <Tabs defaultValue="expenses" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-auto w-full flex-wrap justify-center sm:w-auto">
           <TabsTrigger value="expenses">{lang === 'he' ? 'הוצאות' : 'Expenses'}</TabsTrigger>
-          <TabsTrigger value="balances">{lang === 'he' ? 'מי למי' : 'Who owes'}</TabsTrigger>
+          <TabsTrigger value="balances">{lang === 'he' ? 'מי חייב למי' : 'Who owes'}</TabsTrigger>
           <TabsTrigger value="group-chat">{lang === 'he' ? 'צ׳אט כללי' : 'Group chat'}</TabsTrigger>
           <TabsTrigger value="private-chat">{lang === 'he' ? 'צ׳אט אישי' : 'Private chat'}</TabsTrigger>
           <TabsTrigger value="photos">{lang === 'he' ? 'תמונות' : 'Photos'}</TabsTrigger>
@@ -223,14 +244,19 @@ export default function EventDetail() {
           ) : (
             <div className="flex flex-col gap-2">
               {filteredExpenses.map((expense) => (
-                <ExpenseItem
+                <div
                   key={expense.id}
+                  id={`expense-${expense.id}`}
+                  className={expense.id === deepLinkExpense ? 'rounded-2xl ring-2 ring-primary' : ''}
+                >
+                <ExpenseItem
                   expense={expense}
                   participantsById={participantsById}
                   canManage={expense.created_by === user.id || event.manager_user_id === user.id}
                   onDelete={handleDeleteExpense}
                   onEdit={setEditingExpense}
                 />
+                </div>
               ))}
             </div>
           )}
@@ -286,11 +312,11 @@ export default function EventDetail() {
         </TabsContent>
 
         <TabsContent value="group-chat">
-          <GroupChat event={event} />
+          <GroupChat event={event} scrollToMessageId={deepLinkMsg} scrollToPollId={deepLinkPoll} />
         </TabsContent>
 
         <TabsContent value="private-chat">
-          <PrivateChatsList event={event} />
+          <PrivateChatsList event={event} openWithParticipantId={deepLinkWith} scrollToMessageId={deepLinkMsg} />
         </TabsContent>
 
         <TabsContent value="photos">

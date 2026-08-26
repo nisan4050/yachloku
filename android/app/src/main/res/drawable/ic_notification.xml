@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flat white silhouette used for push notifications — Android auto-tints
+     it, so it must stay solid white here regardless of theme/brand color
+     (set separately via default_notification_color). A briefcase, matching
+     the 🧳 used as the app's icon everywhere else. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,6h-4L16,4c0,-1.11 -0.89,-2 -2,-2h-4C8.89,2 8,2.89 8,4v2L4,6c-1.11,0 -1.99,0.89 -1.99,2L2,19c0,1.11 0.89,2 2,2h16c1.11,0 2,-0.89 2,-2L22,8c0,-1.11 -0.89,-2 -2,-2zM14,4v2h-4L10,4h4zM20,19L4,19L4,8h16v11z"/>
+</vector>

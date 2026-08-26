@@ -27,12 +27,16 @@ export async function markAllNotificationsRead(userId) {
  * failures are swallowed so a notification issue never blocks the action
  * that triggered it.
  */
-export async function notifyEventMembers({ event, excludeUserId, type, title, body, data }) {
+export async function notifyEventMembers({ event, excludeUserId, type, title, body, data, onlyUserIds }) {
   try {
-    const prefKey = { chat: 'chat', expense: 'expenses', settlement: 'balance_changes' }[type];
-    const recipients = (event.participants ?? [])
+    // 'mention' has no pref key on purpose — being @mentioned should reach
+    // you even if you've muted general chat notifications, same as most
+    // chat apps treat a direct mention as higher priority than the mute.
+    const prefKey = { chat: 'chat', poll: 'chat', expense: 'expenses', settlement: 'balance_changes' }[type];
+    let recipients = (event.participants ?? [])
       .filter((p) => p.user_id && p.user_id !== excludeUserId)
       .map((p) => p.user_id);
+    if (onlyUserIds) recipients = recipients.filter((id) => onlyUserIds.includes(id));
     if (recipients.length === 0) return;
 
     let allowed = recipients;

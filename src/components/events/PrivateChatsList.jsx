@@ -6,13 +6,15 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PrivateChatThread } from '@/components/events/PrivateChatThread';
 
-export function PrivateChatsList({ event }) {
+export function PrivateChatsList({ event, openWithParticipantId, scrollToMessageId }) {
   const { user } = useAuth();
   const { lang } = useLang();
   const [unreadByParticipant, setUnreadByParticipant] = useState({});
-  const [activeParticipant, setActiveParticipant] = useState(null);
 
   const others = event.participants.filter((p) => p.user_id && p.user_id !== user.id);
+  const [activeParticipant, setActiveParticipant] = useState(
+    () => others.find((p) => p.id === openWithParticipantId) ?? null
+  );
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -55,7 +57,14 @@ export function PrivateChatsList({ event }) {
   }
 
   if (activeParticipant) {
-    return <PrivateChatThread event={event} otherParticipant={activeParticipant} onBack={() => setActiveParticipant(null)} />;
+    return (
+      <PrivateChatThread
+        event={event}
+        otherParticipant={activeParticipant}
+        onBack={() => setActiveParticipant(null)}
+        scrollToMessageId={scrollToMessageId}
+      />
+    );
   }
 
   return (

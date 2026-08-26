@@ -1,4 +1,4 @@
-import { Bell, MessageSquare, Receipt, HandCoins, UserPlus, ListPlus } from 'lucide-react';
+import { Bell, MessageSquare, Receipt, HandCoins, UserPlus, ListPlus, AtSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,11 +14,26 @@ import { formatChatTimestamp } from '@/lib/dateUtils';
 
 const TYPE_ICON = {
   chat: MessageSquare,
+  mention: AtSign,
   expense: Receipt,
   settlement: HandCoins,
   join: UserPlus,
   poll: ListPlus,
 };
+
+/** Builds the in-app destination for a notification from its `data` payload — mirrors the URL the push edge function builds. */
+function notificationPath(n) {
+  if (!n.event_id) return '/home';
+  const params = new URLSearchParams();
+  const d = n.data ?? {};
+  if (d.tab) params.set('tab', d.tab);
+  if (d.msg) params.set('msg', d.msg);
+  if (d.poll) params.set('poll', d.poll);
+  if (d.expense) params.set('expense', d.expense);
+  if (d.with) params.set('with', d.with);
+  const qs = params.toString();
+  return `/events/${n.event_id}${qs ? `?${qs}` : ''}`;
+}
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -33,7 +48,7 @@ export function NotificationBell() {
 
   const handleClick = (n) => {
     if (!n.read) markRead.mutate(n.id);
-    if (n.event_id) navigate(`/events/${n.event_id}`);
+    navigate(notificationPath(n));
   };
 
   return (

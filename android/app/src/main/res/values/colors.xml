@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches --primary in src/index.css (hsl(157 68% 37%)) -->
+    <color name="notification_color">#1E9F6D</color>
+</resources>

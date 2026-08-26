@@ -256,7 +256,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
         receiptUrl = await uploadReceipt(event.id, receiptFile);
       }
 
-      await createExpense.mutateAsync({ ...expensePayload, event_id: event.id, created_by: userId, receipt_url: receiptUrl });
+      const newExpense = await createExpense.mutateAsync({ ...expensePayload, event_id: event.id, created_by: userId, receipt_url: receiptUrl });
 
       rememberSplit(event.id, { payerIds, splitType, includedIds, category });
 
@@ -266,6 +266,7 @@ export function AddExpenseModal({ event, userId, expense, trigger, open: control
         type: 'expense',
         title: lang === 'he' ? `הוצאה חדשה ב${event.title}` : `New expense in ${event.title}`,
         body: `${description} · ${numAmount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency })}`,
+        data: { tab: 'expenses', expense: newExpense.id },
       });
 
       toast.success(lang === 'he' ? 'ההוצאה נוספה' : 'Expense added');

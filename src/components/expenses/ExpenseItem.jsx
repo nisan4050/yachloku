@@ -94,7 +94,7 @@ export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canMa
         dragElastic={0.05}
         animate={controls}
         onDragEnd={handleDragEnd}
-        className="relative flex items-center gap-3 border border-border bg-card p-4"
+        className="relative flex items-start gap-3 border border-border bg-card p-4"
       >
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
@@ -103,13 +103,13 @@ export function ExpenseItem({ expense, participantsById, onDelete, onEdit, canMa
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-card-foreground">{expense.description}</p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="break-words font-medium text-card-foreground">{expense.description}</p>
+          <p className="break-words text-xs text-muted-foreground">
             {formatDate(expense.date, lang)}
             {payerNames && ` · ${lang === 'he' ? 'שילם/ה' : 'paid by'} ${payerNames}`}
           </p>
         </div>
-        <div className="text-end">
+        <div className="shrink-0 text-end">
           <p className="font-semibold text-card-foreground">
             {expense.amount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency: expense.currency })}
           </p>

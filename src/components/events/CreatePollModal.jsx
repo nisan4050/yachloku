@@ -4,6 +4,7 @@ import { ListPlus, Plus, X, Edit2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useCreatePoll, useUpdatePoll } from '@/hooks/usePolls';
+import { notifyEventMembers } from '@/api/notifications';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export function CreatePollModal({ eventId, poll, trigger }) {
+export function CreatePollModal({ eventId, event, poll, trigger }) {
   const { user } = useAuth();
   const { lang } = useLang();
   const createPoll = useCreatePoll(eventId);
@@ -59,7 +60,18 @@ export function CreatePollModal({ eventId, poll, trigger }) {
         await updatePoll.mutateAsync({ pollId: poll.id, question, options: nextOptions });
         toast.success(lang === 'he' ? 'הסקר עודכן' : 'Poll updated');
       } else {
-        await createPoll.mutateAsync({ eventId, question, options: cleanOptions, userId: user.id });
+        const newPoll = await createPoll.mutateAsync({ eventId, question, options: cleanOptions, userId: user.id });
+        if (event) {
+          const me = event.participants.find((p) => p.user_id === user.id);
+          notifyEventMembers({
+            event,
+            excludeUserId: user.id,
+            type: 'poll',
+            title: lang === 'he' ? `סקר חדש · ${event.title}` : `New poll · ${event.title}`,
+            body: `${me?.name ?? ''}: ${question}`,
+            data: { tab: 'group-chat', poll: newPoll.id },
+          });
+        }
       }
       setOpen(false);
     } catch (err) {

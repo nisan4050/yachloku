@@ -99,14 +99,23 @@ async function getFcmAccessToken() {
   return data.access_token;
 }
 
-async function sendFcm(token: string, title: string, body: string, url: string) {
+async function sendFcm(token: string, title: string, body: string, url: string, tag: string) {
   const accessToken = await getFcmAccessToken();
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ message: { token, notification: { title, body }, data: { url } } }),
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title, body },
+          data: { url },
+          // Same-trip notifications collapse into one instead of piling up
+          // in the tray, and re-alert (sound/heads-up) when they do.
+          android: { notification: { tag, notification_priority: 'PRIORITY_HIGH' } },
+        },
+      }),
     }
   );
   if (!res.ok) {
@@ -134,7 +143,21 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: notifError?.message ?? 'notification not found' }), { status: 404 });
   }
 
-  const url = notification.event_id ? `/events/${notification.event_id}` : '/home';
+  // Mirrors NotificationBell's notificationPath() on the client — same
+  // `data` shape, so a push and the in-app bell land in the same spot.
+  let url = '/home';
+  if (notification.event_id) {
+    const params = new URLSearchParams();
+    const d = notification.data ?? {};
+    if (d.tab) params.set('tab', d.tab);
+    if (d.msg) params.set('msg', d.msg);
+    if (d.poll) params.set('poll', d.poll);
+    if (d.expense) params.set('expense', d.expense);
+    if (d.with) params.set('with', d.with);
+    const qs = params.toString();
+    url = `/events/${notification.event_id}${qs ? `?${qs}` : ''}`;
+  }
+  const tag = notification.event_id ? `event-${notification.event_id}` : 'general';
 
   const { data: subscriptions } = await supabase
     .from('push_subscriptions')
@@ -145,7 +168,7 @@ Deno.serve(async (req) => {
     (subscriptions ?? []).map((sub) =>
       webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify({ title: notification.title, body: notification.body ?? '', url })
+        JSON.stringify({ title: notification.title, body: notification.body ?? '', url, tag })
       )
     )
   );
@@ -169,7 +192,7 @@ Deno.serve(async (req) => {
 
     const fcmResults = await Promise.allSettled(
       (fcmTokens ?? []).map((row) =>
-        sendFcm(row.token, notification.title, notification.body ?? '', url)
+        sendFcm(row.token, notification.title, notification.body ?? '', url, tag)
       )
     );
     fcmSent = fcmResults.filter((r) => r.status === 'fulfilled').length;
