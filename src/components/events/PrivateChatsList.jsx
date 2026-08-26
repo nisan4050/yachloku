@@ -16,6 +16,14 @@ export function PrivateChatsList({ event, openWithParticipantId, scrollToMessage
     () => others.find((p) => p.id === openWithParticipantId) ?? null
   );
 
+  // Open the right chat when deep-linked from notification
+  useEffect(() => {
+    if (openWithParticipantId) {
+      const participant = others.find((p) => p.id === openWithParticipantId);
+      if (participant) setActiveParticipant(participant);
+    }
+  }, [openWithParticipantId, others]);
+
   useEffect(() => {
     const fetchUnread = async () => {
       const { data } = await supabase
