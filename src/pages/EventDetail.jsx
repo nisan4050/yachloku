@@ -11,6 +11,7 @@ import { useExchangeRates, convertExpensesToBase } from '@/hooks/useExchangeRate
 import { usePendingDeletes } from '@/hooks/usePendingDeletes';
 import { confirmSettlement, unconfirmSettlement } from '@/api/payments';
 import { notifyEventMembers } from '@/api/notifications';
+import { syncSettlementSystemMessages } from '@/api/systemMessages';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -87,12 +88,26 @@ export default function EventDetail() {
     });
   }, [visibleExpenses, filters]);
 
+  const participantsById = useMemo(
+    () => Object.fromEntries((event?.participants ?? []).map((p) => [p.id, p])),
+    [event]
+  );
+  const { balances, settlements } = useMemo(
+    () => (event ? getEventBalances(event.participants, balanceExpenses, payments ?? []) : { balances: [], settlements: [] }),
+    [event, balanceExpenses, payments]
+  );
+
+  // Keep each pending debt reflected as an auto-updating system message in
+  // the relevant private chat, so "you owe X to Y" always matches the live balance.
+  useEffect(() => {
+    if (!event) return;
+    syncSettlementSystemMessages({ event, settlements, participantsById, lang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.id, JSON.stringify(settlements)]);
+
   if (eventLoading || !event) {
     return <div className="h-48 animate-pulse rounded-2xl bg-muted" />;
   }
-
-  const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
-  const { balances, settlements } = getEventBalances(event.participants, balanceExpenses, payments ?? []);
   const totalExpensesAmount = balanceExpenses.reduce((sum, e) => sum + e.amount, 0);
   const avgPerParticipant = event.participants.length ? totalExpensesAmount / event.participants.length : 0;
   const formatMoney = (amount) =>

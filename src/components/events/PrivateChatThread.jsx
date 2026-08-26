@@ -479,6 +479,21 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
         )}
         <div className="flex flex-col gap-3">
           {visibleMessages.map((m) => {
+            if (m.is_system) {
+              return (
+                <div key={m.id} id={`dm-${m.id}`} className="flex flex-col items-center gap-1 scroll-mt-4">
+                  <div className="max-w-[85%] rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-center text-xs text-foreground">
+                    <div className="mb-1 whitespace-pre-line font-medium">{m.content}</div>
+                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                      <span>{lang === 'he' ? 'הודעת מערכת אוטומטית' : 'Automatic system message'}</span>
+                      <span>·</span>
+                      <span>{formatChatTimestamp(m.created_at, lang)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             const isMine = m.from_user_id === user.id;
             const repliedMessage = m.reply_to_id ? messages.find((x) => x.id === m.reply_to_id) : null;
             const isImage = m.media_url && isImageUrl(m.media_url, m.media_meta?.type);
