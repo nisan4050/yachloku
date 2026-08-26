@@ -10,6 +10,8 @@ import CreateEvent from '@/pages/CreateEvent';
 import JoinEvent from '@/pages/JoinEvent';
 import EventDetail from '@/pages/EventDetail';
 import Settings from '@/pages/Settings';
+import Privacy from '@/pages/Privacy';
+import Terms from '@/pages/Terms';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 function ProtectedRoute({ children }) {
@@ -36,6 +38,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/signup" element={<Signup />} />
         <Route
           path="/home"

@@ -4,43 +4,35 @@ import { supabase } from '@/api/supabaseClient';
 
 const AuthContext = createContext(undefined);
 
-// Deep link the native app registers for Google to redirect back into after
-// the system browser finishes the OAuth flow (see AndroidManifest.xml).
-const NATIVE_OAUTH_REDIRECT = 'com.yachloku.app://auth-callback';
+// Same OAuth client Supabase's Google provider is configured with (Project
+// Settings -> Authentication -> Providers -> Google in the Supabase
+// dashboard). Required as `webClientId` even on Android — that's what lets
+// Credential Manager mint a Google ID token Supabase will accept.
+const GOOGLE_WEB_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
 
-// Google refuses to complete sign-in inside an embedded WebView (the
-// Capacitor app's normal webview) — it detects the user agent and blocks
-// with "disallowed_useragent". The fix is to open the OAuth flow in the
-// system browser (Chrome Custom Tabs) via @capacitor/browser and catch the
-// redirect back into the app through a custom URL scheme instead.
+let socialLoginInitialized = null;
+
+// Fully native Google sign-in via Android's Credential Manager — the user
+// picks one of the Google accounts already signed into the device, no
+// browser and no WebView involved at any point (unlike a plain OAuth
+// redirect, which Google actively blocks inside an embedded WebView with
+// "disallowed_useragent", and which still requires *some* browser to exist
+// on the device at all).
 async function signInWithGoogleNative() {
-  const { Browser } = await import('@capacitor/browser');
+  const { SocialLogin } = await import('@capgo/capacitor-social-login');
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: NATIVE_OAUTH_REDIRECT, skipBrowserRedirect: true },
-  });
-  if (error) return { error };
-
-  await Browser.open({ url: data.url });
-  return { error: null };
-}
-
-async function completeNativeOAuth(url) {
-  const { Browser } = await import('@capacitor/browser');
-  try {
-    if (url.includes('code=')) {
-      const code = new URL(url).searchParams.get('code');
-      if (code) await supabase.auth.exchangeCodeForSession(code);
-    } else if (url.includes('access_token=')) {
-      const params = new URLSearchParams(url.split('#')[1] ?? '');
-      const access_token = params.get('access_token');
-      const refresh_token = params.get('refresh_token');
-      if (access_token && refresh_token) await supabase.auth.setSession({ access_token, refresh_token });
-    }
-  } finally {
-    Browser.close().catch(() => {});
+  if (!socialLoginInitialized) {
+    socialLoginInitialized = SocialLogin.initialize({
+      google: { webClientId: GOOGLE_WEB_CLIENT_ID },
+    });
   }
+  await socialLoginInitialized;
+
+  const { result } = await SocialLogin.login({ provider: 'google', options: {} });
+  if (!result.idToken) return { error: new Error('Google sign-in did not return an ID token') };
+
+  const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: result.idToken });
+  return { error: error ?? null };
 }
 
 export function AuthProvider({ children }) {
@@ -58,19 +50,6 @@ export function AuthProvider({ children }) {
     });
 
     return () => subscription.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    let handle;
-    import('@capacitor/app').then(({ App }) => {
-      App.addListener('appUrlOpen', ({ url }) => {
-        if (url.startsWith(NATIVE_OAUTH_REDIRECT)) completeNativeOAuth(url);
-      }).then((h) => {
-        handle = h;
-      });
-    });
-    return () => handle?.remove();
   }, []);
 
   const value = {
