@@ -137,17 +137,45 @@ export default function EventDetail() {
         style: 'currency',
         currency: event.currency,
       });
-      notifyEventMembers({
-        event,
-        excludeUserId: user.id,
-        type: 'settlement',
-        title: lang === 'he' ? `סגירת חוב ב${event.title}` : `Debt settled in ${event.title}`,
-        body:
-          lang === 'he'
-            ? `${participantsById[settlement.from]?.name} סגר/ה חוב של ${amountLabel} מול ${participantsById[settlement.to]?.name}`
-            : `${participantsById[settlement.from]?.name} settled ${amountLabel} with ${participantsById[settlement.to]?.name}`,
-        data: { tab: 'balances' },
-      });
+      const fromParticipant = participantsById[settlement.from];
+      const toParticipant = participantsById[settlement.to];
+
+      // Send personalized notifications to each person
+      if (fromParticipant?.user_id && toParticipant?.user_id) {
+        // Notify the debtor: "You owe X to Y"
+        await notifyEventMembers({
+          event: { ...event, participants: [fromParticipant] },
+          type: 'settlement',
+          title: lang === 'he' ? `חוב ל${toParticipant.name}` : `Owe ${toParticipant.name}`,
+          body:
+            lang === 'he'
+              ? `אתה חייב ל${toParticipant.name} ${amountLabel}`
+              : `You owe ${toParticipant.name} ${amountLabel}`,
+          data: {
+            tab: 'private-chat',
+            with: settlement.to,
+            settlement_amount: settlement.amount,
+            settlement_currency: event.currency,
+          },
+        });
+
+        // Notify the creditor: "Y owes you X"
+        await notifyEventMembers({
+          event: { ...event, participants: [toParticipant] },
+          type: 'settlement',
+          title: lang === 'he' ? `${fromParticipant.name} חייב לך` : `${fromParticipant.name} owes you`,
+          body:
+            lang === 'he'
+              ? `${fromParticipant.name} חייב לך ${amountLabel}`
+              : `${fromParticipant.name} owes you ${amountLabel}`,
+          data: {
+            tab: 'private-chat',
+            with: settlement.from,
+            settlement_amount: settlement.amount,
+            settlement_currency: event.currency,
+          },
+        });
+      }
     } catch (err) {
       toast.error(err.message);
     }
