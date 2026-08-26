@@ -45,7 +45,9 @@ jobs:
 
       - name: Decode signing keystore
         working-directory: ./android
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore/yachloku-release.keystore
+        run: |
+          mkdir -p keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore/yachloku-release.keystore
 
       - name: Build signed release APK
         working-directory: ./android
