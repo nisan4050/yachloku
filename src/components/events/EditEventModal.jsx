@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Pencil, UserPlus, X, Trash2 } from 'lucide-react';
+import { Pencil, UserPlus, X, Trash2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
+import { supabase } from '@/api/supabaseClient';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,20 @@ export function EditEventModal({ event }) {
   const [status, setStatus] = useState(event.status);
   const [newParticipantName, setNewParticipantName] = useState('');
   const [addingParticipant, setAddingParticipant] = useState(false);
+  const [mediaCount, setMediaCount] = useState(0);
+
+  useEffect(() => {
+    if (!deleteOpen) return;
+    const countMedia = async () => {
+      const [groupMsgs, chatMsgs] = await Promise.all([
+        supabase.from('group_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
+        supabase.from('chat_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
+      ]);
+      const total = (groupMsgs.count ?? 0) + (chatMsgs.count ?? 0);
+      setMediaCount(total);
+    };
+    countMedia();
+  }, [deleteOpen, event.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -167,6 +182,7 @@ export function EditEventModal({ event }) {
                 placeholder={lang === 'he' ? 'שם המשתתף/ת' : "Participant's name"}
                 value={newParticipantName}
                 onChange={(e) => setNewParticipantName(e.target.value)}
+                className="placeholder:text-foreground/50"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -204,7 +220,23 @@ export function EditEventModal({ event }) {
                         : 'This permanently deletes all expenses, messages, polls, and photos in this event for every participant. This cannot be undone.'}
                     </DialogDescription>
                   </DialogHeader>
+                  {mediaCount > 0 && (
+                    <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-200">
+                      <AlertCircle className="h-5 w-5 shrink-0" />
+                      <div>
+                        <p className="font-medium">{lang === 'he' ? '⚠️ התמונות והקבצים' : '⚠️ Media files'}</p>
+                        <p className="text-xs opacity-90">
+                          {lang === 'he'
+                            ? `${mediaCount} תמונה/קובץ בטיול. שקול להעתיק אותם לGoogle Drive לפני המחיקה.`
+                            : `${mediaCount} photo/file in this trip. Consider backing them up to Google Drive before deleting.`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                      {lang === 'he' ? 'ביטול' : 'Cancel'}
+                    </Button>
                     <Button variant="destructive" onClick={handleDeleteEvent} disabled={deleteEvent.isPending}>
                       {t('action_delete')}
                     </Button>
