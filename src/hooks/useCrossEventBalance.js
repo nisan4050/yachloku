@@ -41,12 +41,17 @@ export function useCrossEventBalance(events, userId) {
       );
 
       const withBalance = perEvent.filter((e) => e && Math.abs(e.balance) > 0.005);
-      const totalsByCurrency = withBalance.reduce((acc, e) => {
-        acc[e.currency] = (acc[e.currency] ?? 0) + e.balance;
-        return acc;
-      }, {});
 
-      return { perEvent: withBalance, totalsByCurrency };
+      // Two separate totals per currency — a debt in one trip is never offset
+      // against being owed money in a different trip, since they're unrelated.
+      const owedByMeTotals = {};
+      const owedToMeTotals = {};
+      for (const e of withBalance) {
+        if (e.balance < 0) owedByMeTotals[e.currency] = (owedByMeTotals[e.currency] ?? 0) + Math.abs(e.balance);
+        else owedToMeTotals[e.currency] = (owedToMeTotals[e.currency] ?? 0) + e.balance;
+      }
+
+      return { perEvent: withBalance, owedByMeTotals, owedToMeTotals };
     },
     enabled: Boolean(userId) && activeEvents.length > 0,
     staleTime: 30_000,

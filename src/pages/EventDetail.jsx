@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share2, Plus, Trash2 } from 'lucide-react';
+import { Share2, Plus, Trash2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useEvent } from '@/hooks/useEvents';
@@ -32,31 +32,33 @@ import { TripRecapModal } from '@/components/events/TripRecapModal';
 export default function EventDetail() {
   const { eventId } = useParams();
   const { user } = useAuth();
-  const { lang, t } = useLang();
+  const { lang, t, dir } = useLang();
+  const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft;
   const [searchParams, setSearchParams] = useSearchParams();
-  const deepLinkTab = searchParams.get('tab');
-  const deepLinkMsg = searchParams.get('msg');
-  const deepLinkPoll = searchParams.get('poll');
-  const deepLinkExpense = searchParams.get('expense');
-  const deepLinkWith = searchParams.get('with');
+  // Captured ONCE on mount into state — reading straight from searchParams
+  // instead would go stale the instant the URL is cleared below, before the
+  // async message/expense fetches that need these values have even resolved.
+  const [deepLink] = useState(() => ({
+    tab: searchParams.get('tab'),
+    msg: searchParams.get('msg'),
+    poll: searchParams.get('poll'),
+    expense: searchParams.get('expense'),
+    with: searchParams.get('with'),
+  }));
   const [fabModalOpen, setFabModalOpen] = useState(false);
   const [deleteEventOpen, setDeleteEventOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [filters, setFilters] = useState({ text: '', category: FILTER_ALL_CATEGORIES });
-  const [activeTab, setActiveTab] = useState(deepLinkTab ?? 'expenses');
+  const [activeTab, setActiveTab] = useState(deepLink.tab ?? 'expenses');
   const { pendingIds, scheduleDelete } = usePendingDeletes();
 
-  // Deep link from a notification tap — consume the query params once so
+  // Deep link from a notification tap — clear the query params once so
   // re-navigating within the page (switching tabs manually) doesn't keep
-  // re-triggering the scroll/highlight.
+  // re-triggering the scroll/highlight. The captured `deepLink` state above
+  // is unaffected by this, so children can still wait for their own data.
   useEffect(() => {
-    if (!deepLinkTab && !deepLinkMsg && !deepLinkPoll && !deepLinkExpense && !deepLinkWith) return;
+    if (!deepLink.tab && !deepLink.msg && !deepLink.poll && !deepLink.expense && !deepLink.with) return;
     setSearchParams({}, { replace: true });
-    if (deepLinkExpense) {
-      setTimeout(() => {
-        document.getElementById(`expense-${deepLinkExpense}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -77,6 +79,17 @@ export default function EventDetail() {
     () => (expenses ?? []).filter((e) => !pendingIds.has(e.id)),
     [expenses, pendingIds]
   );
+
+  // Waits for the target expense to actually be in the loaded list before
+  // scrolling — a fixed timeout raced against the async fetch and only
+  // "sometimes" worked.
+  useEffect(() => {
+    if (!deepLink.expense || !visibleExpenses.some((e) => e.id === deepLink.expense)) return;
+    const timer = setTimeout(() => {
+      document.getElementById(`expense-${deepLink.expense}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [visibleExpenses, deepLink.expense]);
 
   const balanceExpenses = useMemo(
     () => convertExpensesToBase(visibleExpenses, hasMixedCurrencies ? rates : null),
@@ -225,6 +238,13 @@ export default function EventDetail() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
+          <Link
+            to="/home"
+            aria-label={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
+            className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <BackIcon className="h-5 w-5" />
+          </Link>
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-3xl">{event.icon}</div>
           <div>
             <div className="flex items-center gap-2">
@@ -303,7 +323,7 @@ export default function EventDetail() {
                 <div
                   key={expense.id}
                   id={`expense-${expense.id}`}
-                  className={expense.id === deepLinkExpense ? 'rounded-2xl ring-2 ring-primary' : ''}
+                  className={expense.id === deepLink.expense ? 'rounded-2xl ring-2 ring-primary' : ''}
                 >
                 <ExpenseItem
                   expense={expense}
@@ -370,11 +390,11 @@ export default function EventDetail() {
         </TabsContent>
 
         <TabsContent value="group-chat">
-          <GroupChat event={event} scrollToMessageId={deepLinkMsg} scrollToPollId={deepLinkPoll} />
+          <GroupChat event={event} scrollToMessageId={deepLink.msg} scrollToPollId={deepLink.poll} />
         </TabsContent>
 
         <TabsContent value="private-chat">
-          <PrivateChatsList event={event} openWithParticipantId={deepLinkWith} scrollToMessageId={deepLinkMsg} />
+          <PrivateChatsList event={event} openWithParticipantId={deepLink.with} scrollToMessageId={deepLink.msg} />
         </TabsContent>
 
         <TabsContent value="photos">

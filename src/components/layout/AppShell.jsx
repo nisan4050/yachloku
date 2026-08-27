@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-import { Home, PlusCircle, Settings, LogOut, User, Search } from 'lucide-react';
+import { Home, Settings, LogOut, User, Search } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,9 +18,10 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 
+// "Create trip" isn't here — it's redundant with the prominent button already
+// on the home page itself.
 const NAV_ITEMS = [
   { to: '/home', icon: Home, key: 'nav_home' },
-  { to: '/events/new', icon: PlusCircle, key: 'action_create_event' },
   { to: '/settings', icon: Settings, key: 'nav_settings' },
 ];
 

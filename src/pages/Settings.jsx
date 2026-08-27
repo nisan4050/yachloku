@@ -46,7 +46,7 @@ const NOTIFICATION_TOGGLES = [
 export default function Settings() {
   const { user, signOut } = useAuth();
   const { lang, toggleLang, t } = useLang();
-  const { theme, toggleTheme } = useTheme();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const { highContrast, setHighContrast, fontScale, setFontScale, fontScales } = useAccessibility();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -137,9 +137,18 @@ export default function Settings() {
             <Label htmlFor="lang-switch">{lang === 'he' ? 'שפה: עברית' : 'Language: English'}</Label>
             <Switch id="lang-switch" checked={lang === 'en'} onCheckedChange={toggleLang} />
           </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="theme-switch">{lang === 'he' ? 'מצב כהה' : 'Dark mode'}</Label>
-            <Switch id="theme-switch" checked={theme === 'dark'} onCheckedChange={toggleTheme} />
+          <div className="flex items-center justify-between gap-3">
+            <Label>{lang === 'he' ? 'ערכת נושא' : 'Theme'}</Label>
+            <Select value={themeMode} onValueChange={setThemeMode}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">{lang === 'he' ? 'אוטומטי (לפי המכשיר)' : 'Auto (device)'}</SelectItem>
+                <SelectItem value="light">{lang === 'he' ? 'בהיר' : 'Light'}</SelectItem>
+                <SelectItem value="dark">{lang === 'he' ? 'כהה' : 'Dark'}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {isPushSupported() && (
             <div className="flex items-center justify-between">

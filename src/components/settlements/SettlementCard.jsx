@@ -18,14 +18,18 @@ export function SettlementCard({ settlement, participantsById, currency, confirm
 
   return (
     <Card className={confirmed ? 'border-border bg-muted/50 opacity-70' : undefined}>
-      <CardContent className="flex flex-col gap-2 p-4">
-        <div className="flex items-center gap-3">
-          <span className="min-w-0 truncate font-medium text-card-foreground">{from?.name}</span>
-          <ArrowIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate font-medium text-card-foreground">{to?.name}</span>
-          <span className="ms-auto shrink-0 font-semibold text-accent">
+      <CardContent className="flex flex-col gap-2.5 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-medium text-card-foreground">{from?.name}</span>
+            <ArrowIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 truncate font-medium text-card-foreground">{to?.name}</span>
+          </div>
+          <span className="shrink-0 font-semibold text-accent">
             {settlement.amount.toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency })}
           </span>
+        </div>
+        <div className="flex items-center justify-end">
           {confirmed ? (
             canManage ? (
               <Button size="sm" variant="ghost" onClick={() => onUnconfirm(settlement)}>
@@ -33,7 +37,7 @@ export function SettlementCard({ settlement, participantsById, currency, confirm
                 {lang === 'he' ? 'ביטול' : 'Undo'}
               </Button>
             ) : (
-              <span className="shrink-0 text-xs text-muted-foreground">{lang === 'he' ? 'סוכם' : 'Settled'}</span>
+              <span className="text-xs text-muted-foreground">{lang === 'he' ? 'סוכם' : 'Settled'}</span>
             )
           ) : canManage ? (
             <Button size="sm" onClick={handleConfirm}>
@@ -41,7 +45,7 @@ export function SettlementCard({ settlement, participantsById, currency, confirm
               {lang === 'he' ? 'סימון כשולם' : 'Mark paid'}
             </Button>
           ) : (
-            <span className="shrink-0 text-xs text-muted-foreground">
+            <span className="text-end text-xs text-muted-foreground">
               {lang === 'he' ? `רק ${from?.name} יכול/ה לסמן` : `Only ${from?.name} can mark this`}
             </span>
           )}
