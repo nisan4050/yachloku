@@ -44,6 +44,12 @@ export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: eventsApi.deleteEvent,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      // The event's own notifications cascade-delete server-side, but the
+      // deleting user's own bell has them cached — don't wait for the
+      // realtime DELETE event to catch up.
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
   });
 }

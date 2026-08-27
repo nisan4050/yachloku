@@ -17,7 +17,7 @@ export function useNotifications(userId) {
       .channel(`notifications-${userId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         () => queryClient.invalidateQueries({ queryKey: ['notifications', userId] })
       )
       .subscribe();

@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AddFriendsDialog } from '@/components/events/AddFriendsDialog';
 
 const ICONS = ['🧳', '🏖️', '⛰️', '🏕️', '🎉', '🚐', '✈️', '🚢', '🍽️', '🏙️'];
 const CURRENCIES = ['ILS', 'USD', 'EUR', 'GBP'];
@@ -25,6 +27,13 @@ export default function CreateEvent() {
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState(ICONS[0]);
   const [currency, setCurrency] = useState('ILS');
+  const [friendNames, setFriendNames] = useState([]);
+  const [addFriendsOpen, setAddFriendsOpen] = useState(false);
+
+  const handleAddFriends = (names) => {
+    setFriendNames((prev) => [...new Set([...prev, ...names])]);
+    setAddFriendsOpen(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,6 +45,7 @@ export default function CreateEvent() {
         currency,
         userId: user.id,
         participantName: user.user_metadata?.full_name || user.email,
+        extraParticipantNames: friendNames,
       });
       toast.success(lang === 'he' ? 'האירוע נוצר!' : 'Event created!');
       navigate(`/events/${event.id}`);
@@ -99,6 +109,31 @@ export default function CreateEvent() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>{lang === 'he' ? 'חברים (לא חובה)' : 'Friends (optional)'}</Label>
+              {friendNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 rounded-xl border border-border p-2">
+                  {friendNames.map((name) => (
+                    <Badge key={name} variant="secondary" className="gap-1 py-1 ps-2.5 pe-1.5 text-xs font-normal">
+                      {name}
+                      <button
+                        type="button"
+                        onClick={() => setFriendNames((prev) => prev.filter((n) => n !== name))}
+                        aria-label={lang === 'he' ? 'הסרה' : 'Remove'}
+                        className="rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Button type="button" variant="outline" className="self-start" onClick={() => setAddFriendsOpen(true)}>
+                {lang === 'he' ? 'הוספת חברים' : 'Add friends'}
+              </Button>
+              <AddFriendsDialog open={addFriendsOpen} onOpenChange={setAddFriendsOpen} onConfirm={handleAddFriends} />
             </div>
 
             <Button type="submit" disabled={createEvent.isPending}>

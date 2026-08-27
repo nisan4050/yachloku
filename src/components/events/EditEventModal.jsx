@@ -1,20 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, UserPlus, X, Trash2, AlertCircle, Info } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
-import { useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
-import { supabase } from '@/api/supabaseClient';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { useUpdateEvent } from '@/hooks/useEvents';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,39 +12,25 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AddFriendsDialog } from '@/components/events/AddFriendsDialog';
 
 const CURRENCIES = ['ILS', 'USD', 'EUR', 'GBP'];
 
 export function EditEventModal({ event }) {
   const { user } = useAuth();
   const { lang, t } = useLang();
-  const navigate = useNavigate();
   const updateEvent = useUpdateEvent(event.id);
-  const deleteEvent = useDeleteEvent();
   const [open, setOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const canDelete = event.created_by === user.id || event.manager_user_id === user.id;
+  const isCreator = event.created_by === user.id;
   const [title, setTitle] = useState(event.title);
   const [description, setDescription] = useState(event.description ?? '');
   const [currency, setCurrency] = useState(event.currency);
   const [status, setStatus] = useState(event.status);
   const [addFriendsOpen, setAddFriendsOpen] = useState(false);
-  const [bulkNamesInput, setBulkNamesInput] = useState('');
   const [addingParticipant, setAddingParticipant] = useState(false);
-  const [mediaCount, setMediaCount] = useState(0);
 
-  useEffect(() => {
-    if (!deleteOpen) return;
-    const countMedia = async () => {
-      const [groupMsgs, chatMsgs] = await Promise.all([
-        supabase.from('group_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
-        supabase.from('chat_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
-      ]);
-      const total = (groupMsgs.count ?? 0) + (chatMsgs.count ?? 0);
-      setMediaCount(total);
-    };
-    countMedia();
-  }, [deleteOpen, event.id]);
+  // Only the trip's creator can edit it — everyone else never sees the entry point at all.
+  if (!isCreator) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,19 +43,11 @@ export function EditEventModal({ event }) {
     }
   };
 
-  const handleAddFriends = async () => {
-    const names = [...new Set(
-      bulkNamesInput
-        .split('\n')
-        .map((n) => n.trim())
-        .filter(Boolean)
-    )];
-    if (names.length === 0) return;
+  const handleAddFriends = async (names) => {
     setAddingParticipant(true);
     try {
       const newParticipants = names.map((name) => ({ id: crypto.randomUUID(), name, email: null, user_id: null }));
       await updateEvent.mutateAsync({ participants: [...event.participants, ...newParticipants] });
-      setBulkNamesInput('');
       setAddFriendsOpen(false);
       toast.success(
         lang === 'he'
@@ -96,16 +64,6 @@ export function EditEventModal({ event }) {
   const handleRemoveParticipant = async (participantId) => {
     try {
       await updateEvent.mutateAsync({ participants: event.participants.filter((p) => p.id !== participantId) });
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleDeleteEvent = async () => {
-    try {
-      await deleteEvent.mutateAsync(event.id);
-      toast.success(lang === 'he' ? 'האירוע נמחק' : 'Event deleted');
-      navigate('/home');
     } catch (err) {
       toast.error(err.message);
     }
@@ -199,96 +157,16 @@ export function EditEventModal({ event }) {
               ))}
             </div>
 
-            <Dialog open={addFriendsOpen} onOpenChange={setAddFriendsOpen}>
-              <DialogTrigger asChild>
-                <Button type="button" variant="outline" className="self-start">
-                  <UserPlus className="h-4 w-4" />
-                  {lang === 'he' ? 'הוספת חברים' : 'Add friends'}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{lang === 'he' ? 'הוספת חברים ללא חשבון' : 'Add friends without an account'}</DialogTitle>
-                </DialogHeader>
-                <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900/30 dark:bg-blue-900/20 dark:text-blue-200">
-                  <Info className="h-5 w-5 shrink-0" />
-                  <p className="text-xs">
-                    {lang === 'he'
-                      ? 'זה מיועד רק למי שאין לו/לה טלפון או חשבון. אם החבר/ה מתכוון/ת להתחבר בעצמו/ה מהטלפון שלו/ה, עדיף שיצטרף/תצטרף עם קוד ההזמנה — כך הוא/היא יוכל/תוכל לראות את הטיול ולשוחח בצ׳אט.'
-                      : "This is only for someone without a phone or account. If they plan to log in themselves from their own phone, it's better to have them join with the invite code instead — that way they can see the trip and chat."}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>{lang === 'he' ? 'שמות (שם אחד בכל שורה)' : 'Names (one per line)'}</Label>
-                  <Textarea
-                    autoFocus
-                    rows={5}
-                    value={bulkNamesInput}
-                    onChange={(e) => setBulkNamesInput(e.target.value)}
-                    placeholder={lang === 'he' ? 'דנה כהן\nאבי לוי\nמיכל ברק' : 'Dana Cohen\nAvi Levi\nMichal Barak'}
-                    className="placeholder:text-foreground/50"
-                  />
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setAddFriendsOpen(false)}>
-                    {lang === 'he' ? 'ביטול' : 'Cancel'}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleAddFriends}
-                    disabled={addingParticipant || !bulkNamesInput.trim()}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    {lang === 'he' ? 'הוספה' : 'Add'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button type="button" variant="outline" className="self-start" onClick={() => setAddFriendsOpen(true)}>
+              {lang === 'he' ? 'הוספת חברים' : 'Add friends'}
+            </Button>
+            <AddFriendsDialog
+              open={addFriendsOpen}
+              onOpenChange={setAddFriendsOpen}
+              onConfirm={handleAddFriends}
+              adding={addingParticipant}
+            />
           </div>
-
-          {canDelete && (
-            <div className="flex flex-col gap-1.5 border-t border-border pt-4">
-              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                <DialogTrigger asChild>
-                  <Button type="button" variant="destructive" className="self-start">
-                    <Trash2 className="h-4 w-4" />
-                    {lang === 'he' ? 'מחיקת האירוע' : 'Delete event'}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{lang === 'he' ? `למחוק את "${event.title}"?` : `Delete "${event.title}"?`}</DialogTitle>
-                    <DialogDescription>
-                      {lang === 'he'
-                        ? 'הפעולה מוחקת לצמיתות את כל ההוצאות, ההודעות, הסקרים והתמונות של האירוע עבור כל המשתתפים. לא ניתן לבטל.'
-                        : 'This permanently deletes all expenses, messages, polls, and photos in this event for every participant. This cannot be undone.'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  {mediaCount > 0 && (
-                    <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-200">
-                      <AlertCircle className="h-5 w-5 shrink-0" />
-                      <div>
-                        <p className="font-medium">{lang === 'he' ? '⚠️ התמונות והקבצים' : '⚠️ Media files'}</p>
-                        <p className="text-xs opacity-90">
-                          {lang === 'he'
-                            ? `${mediaCount} תמונה/קובץ בטיול. שקול להעתיק אותם לGoogle Drive לפני המחיקה.`
-                            : `${mediaCount} photo/file in this trip. Consider backing them up to Google Drive before deleting.`}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-                      {lang === 'he' ? 'ביטול' : 'Cancel'}
-                    </Button>
-                    <Button variant="destructive" onClick={handleDeleteEvent} disabled={deleteEvent.isPending}>
-                      {t('action_delete')}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
 
           <DialogFooter>
             <Button type="submit" disabled={updateEvent.isPending}>

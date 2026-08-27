@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share2, Plus } from 'lucide-react';
+import { Share2, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useEvent } from '@/hooks/useEvents';
@@ -23,6 +23,7 @@ import { ExpenseFilterBar, FILTER_ALL_CATEGORIES } from '@/components/expenses/E
 import { BalanceCard } from '@/components/settlements/BalanceCard';
 import { SettlementCard } from '@/components/settlements/SettlementCard';
 import { EditEventModal } from '@/components/events/EditEventModal';
+import { DeleteEventDialog } from '@/components/events/DeleteEventDialog';
 import { GroupChat } from '@/components/events/GroupChat';
 import { PrivateChatsList } from '@/components/events/PrivateChatsList';
 import { PhotosGallery } from '@/components/events/PhotosGallery';
@@ -39,6 +40,7 @@ export default function EventDetail() {
   const deepLinkExpense = searchParams.get('expense');
   const deepLinkWith = searchParams.get('with');
   const [fabModalOpen, setFabModalOpen] = useState(false);
+  const [deleteEventOpen, setDeleteEventOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [filters, setFilters] = useState({ text: '', category: FILTER_ALL_CATEGORIES });
   const [activeTab, setActiveTab] = useState(deepLinkTab ?? 'expenses');
@@ -65,6 +67,7 @@ export default function EventDetail() {
   const deletePayment = useDeletePayment(eventId);
   const deleteExpense = useDeleteExpense(eventId);
   const isManager = event?.manager_user_id === user.id;
+  const canDeleteEvent = event && (event.created_by === user.id || event.manager_user_id === user.id);
   const isTripClosed = event?.status && event.status !== 'active';
 
   const hasMixedCurrencies = (expenses ?? []).some((e) => event && e.currency !== event.currency);
@@ -227,6 +230,16 @@ export default function EventDetail() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{event.title}</h1>
               <EditEventModal event={event} />
+              {canDeleteEvent && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteEventOpen(true)}
+                  aria-label={lang === 'he' ? 'מחיקת הטיול' : 'Delete trip'}
+                  className="text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
               <Badge>{event.currency}</Badge>
             </div>
             {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
@@ -386,6 +399,7 @@ export default function EventDetail() {
           if (!v) setEditingExpense(null);
         }}
       />
+      {canDeleteEvent && <DeleteEventDialog event={event} open={deleteEventOpen} onOpenChange={setDeleteEventOpen} />}
     </div>
   );
 }

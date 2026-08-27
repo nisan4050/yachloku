@@ -26,6 +26,7 @@ import { uploadWithProgress } from '@/lib/storageUpload';
 import { usePolls } from '@/hooks/usePolls';
 import { isImageUrl, isVideoUrl } from '@/api/chat';
 import { MediaLightbox } from '@/components/events/MediaLightbox';
+import { ChatMessageInput } from '@/components/events/ChatMessageInput';
 import { notifyEventMembers } from '@/api/notifications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -112,6 +113,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [lightboxMessage, setLightboxMessage] = useState(null);
   const bottomRef = useRef(null);
+  const textInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const pressTimerRef = useRef(null);
@@ -185,7 +187,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   }, [messages, polls]);
 
   const handleSend = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!me) return;
     const rawContent = text.trim();
 
@@ -329,6 +331,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
       toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
       const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
       setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+      textInputRef.current?.focus();
     } catch {
       toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location');
     }
@@ -430,6 +433,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
     }
 
     setPendingAttachment({ kind: 'file', file });
+    textInputRef.current?.focus();
   };
 
   const visibleMessages = messages.filter((m) => {
@@ -839,9 +843,11 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
                 ))}
               </div>
             )}
-            <Input
+            <ChatMessageInput
+              ref={textInputRef}
               value={text}
-              onChange={(e) => handleTyping(e.target.value)}
+              onChange={handleTyping}
+              onSubmit={handleSend}
               placeholder={lang === 'he' ? 'כתבו הודעה...' : 'Type a message...'}
             />
           </div>

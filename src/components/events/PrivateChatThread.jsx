@@ -32,6 +32,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ChatMessageInput } from '@/components/events/ChatMessageInput';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,6 +93,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   const [lightboxMessage, setLightboxMessage] = useState(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const pressTimerRef = useRef(null);
   const pressMovedRef = useRef(false);
@@ -207,7 +209,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   };
 
   const handleSend = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!me) return;
     const rawContent = text.trim();
 
@@ -326,6 +328,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
       toast.info(lang === 'he' ? 'מאתר מיקום...' : 'Getting your location...');
       const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
       setPendingAttachment({ kind: 'location', lat: pos.coords.latitude, lng: pos.coords.longitude });
+      textInputRef.current?.focus();
     } catch {
       toast.error(lang === 'he' ? 'לא ניתן לקבל את המיקום' : 'Could not get your location');
     }
@@ -340,6 +343,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
       return;
     }
     setPendingAttachment({ kind: 'file', file });
+    textInputRef.current?.focus();
   };
 
   const handleEdit = (message) => {
@@ -750,9 +754,11 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
           >
             <MapPin className="h-4 w-4" />
           </Button>
-          <Input
+          <ChatMessageInput
+            ref={textInputRef}
             value={text}
-            onChange={(e) => handleTyping(e.target.value)}
+            onChange={handleTyping}
+            onSubmit={handleSend}
             placeholder={lang === 'he' ? 'כתבו הודעה...' : 'Type a message...'}
             className="min-w-0 flex-1"
           />

@@ -12,7 +12,11 @@ export async function getEvent(eventId) {
   return data;
 }
 
-export async function createEvent({ title, description, icon, currency, userId, participantName }) {
+export async function createEvent({ title, description, icon, currency, userId, participantName, extraParticipantNames }) {
+  const participants = [
+    { id: crypto.randomUUID(), name: participantName, email: null, user_id: userId },
+    ...(extraParticipantNames ?? []).map((name) => ({ id: crypto.randomUUID(), name, email: null, user_id: null })),
+  ];
   const { data, error } = await supabase
     .from('events')
     .insert({
@@ -22,7 +26,7 @@ export async function createEvent({ title, description, icon, currency, userId, 
       currency,
       created_by: userId,
       manager_user_id: userId,
-      participants: [{ id: crypto.randomUUID(), name: participantName, email: null, user_id: userId }],
+      participants,
     })
     .select()
     .single();

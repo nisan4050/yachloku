@@ -26,7 +26,7 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }) {
   const { user, signOut } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const location = useLocation();
   const navigate = useNavigate();
   const keyboardVisible = useKeyboardVisible();
@@ -39,7 +39,14 @@ export function AppShell({ children }) {
     import('@capacitor/push-notifications').then(({ PushNotifications }) => {
       Promise.all([
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          toast(notification.title ?? '', { description: notification.body });
+          const url = notification.data?.url;
+          toast(notification.title ?? '', {
+            description: notification.body,
+            icon: '🧳',
+            duration: 6000,
+            action: url ? { label: lang === 'he' ? 'צפייה' : 'View', onClick: () => navigate(url) } : undefined,
+            onClick: url ? () => navigate(url) : undefined,
+          });
         }),
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           const url = action.notification?.data?.url;
