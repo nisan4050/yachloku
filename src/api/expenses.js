@@ -1,5 +1,5 @@
-import { supabase } from '@/api/supabaseClient';
 import { serverFetch } from '@/api/server';
+import { uploadWithProgress } from '@/lib/storageUpload';
 import { buildStoragePath } from '@/lib/utils';
 
 export function listExpenses(eventId) {
@@ -18,10 +18,6 @@ export function deleteExpense(expenseId) {
   return serverFetch(`/expenses/${expenseId}`, { method: 'DELETE' });
 }
 
-export async function uploadReceipt(eventId, file) {
-  const path = buildStoragePath(eventId, file);
-  const { error } = await supabase.storage.from('receipts').upload(path, file);
-  if (error) throw error;
-  const { data } = supabase.storage.from('receipts').getPublicUrl(path);
-  return data.publicUrl;
+export function uploadReceipt(eventId, file) {
+  return uploadWithProgress('receipts', buildStoragePath(eventId, file), file);
 }

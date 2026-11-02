@@ -1,4 +1,5 @@
 import { wrap, memberClause, getMemberEvent, jsonVal } from './lib.js';
+import { removeEventFiles } from './uploads.js';
 
 const MEMBER_SQL = memberClause(1);
 
@@ -96,6 +97,7 @@ export function registerEventRoutes(app, pool, requireAuth) {
       req.userId,
     ]);
     if (rowCount === 0) return res.status(403).json({ error: 'only the trip manager can delete this trip' });
+    await removeEventFiles(req.params.id);
     res.status(204).end();
   }));
 }

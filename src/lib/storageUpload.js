@@ -1,43 +1,36 @@
-// Supabase-js's storage upload() doesn't expose progress events, so uploads
-// with a real percentage go straight through XHR against the Storage REST
-// endpoint instead.
-import { supabase } from '@/api/supabaseClient';
+import { getToken } from '@/api/server';
 
 /**
- * @param {string} bucket
- * @param {string} path
+ * Uploads a file to the API with a real progress percentage (fetch has no upload progress, so XHR).
+ * @param {string} bucket  receipts | event-photos | chat-media | feedback | avatars
+ * @param {string} path    `<ownerId>/<uuid>.<ext>` from buildStoragePath
  * @param {File} file
- * @param {(percent: number) => void} onProgress
- * @returns {Promise<string>} public URL of the uploaded object
+ * @param {(percent: number) => void} [onProgress]
+ * @returns {Promise<string>} public URL of the uploaded file
  */
-export async function uploadWithProgress(bucket, path, file, onProgress) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+export function uploadWithProgress(bucket, path, file, onProgress = () => {}) {
+  const url = `${import.meta.env.VITE_API_URL}/uploads/${bucket}?path=${encodeURIComponent(path)}`;
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const url = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
-
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
-    xhr.setRequestHeader('Authorization', `Bearer ${session?.access_token ?? anonKey}`);
-    xhr.setRequestHeader('apikey', anonKey);
-    xhr.setRequestHeader('x-upsert', 'false');
-    if (file.type) xhr.setRequestHeader('Content-Type', file.type);
+    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+      let body = {};
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* non-JSON error body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && body.url) resolve(body.url);
+      else reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
     };
     xhr.onerror = () => reject(new Error('Upload failed: network error'));
     xhr.send(file);
   });
-
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
 }

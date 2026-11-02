@@ -9,6 +9,9 @@ import { registerPollRoutes } from './polls.js';
 import { registerProfileRoutes } from './profile.js';
 import { registerAccountRoutes } from './account.js';
 import { registerChatRoutes } from './chat.js';
+import { registerUploadRoutes } from './uploads.js';
+import { registerFeedbackRoutes } from './feedback.js';
+import { createPushDelivery, registerPushRoutes } from './push.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000, CORS_ORIGINS = '' } = process.env;
 
@@ -21,7 +24,8 @@ const pool = new pg.Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthor
 await migrate(pool);
 
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+const jsonParser = express.json({ limit: '1mb' });
+app.use((req, res, next) => (req.path.startsWith('/uploads') ? next() : jsonParser(req, res, next)));
 
 const allowedOrigins = CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
 app.use((req, res, next) => {
@@ -109,9 +113,12 @@ app.get('/auth/me', requireAuth, wrap(async (req, res) => {
 registerEventRoutes(app, pool, requireAuth);
 registerExpenseRoutes(app, pool, requireAuth);
 registerPollRoutes(app, pool, requireAuth);
-registerProfileRoutes(app, pool, requireAuth);
+registerProfileRoutes(app, pool, requireAuth, createPushDelivery(pool));
+registerPushRoutes(app, pool, requireAuth);
 registerAccountRoutes(app, pool, requireAuth);
 registerChatRoutes(app, pool, requireAuth, requireAuthStream);
+registerUploadRoutes(app, pool, requireAuth);
+registerFeedbackRoutes(app, pool, requireAuth);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

@@ -6,8 +6,8 @@ export function cn(...inputs) {
 }
 
 /**
- * Builds a Supabase Storage-safe object key for an uploaded file.
- * Storage keys must stay ASCII-only, so the original filename (which may
+ * Builds a storage-safe object key for an uploaded file.
+ * Keys must stay ASCII-only, so the original filename (which may
  * contain Hebrew, spaces, or punctuation) is dropped — only its extension
  * is kept — and replaced with a random id.
  */

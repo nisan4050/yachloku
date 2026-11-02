@@ -1,4 +1,7 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { wrap, memberClause } from './lib.js';
+import { removeEventFiles } from './uploads.js';
 
 // Replaces the Supabase `delete-account` edge function. Without FKs to the user table,
 // the former ON DELETE SET NULL / CASCADE behaviour is applied explicitly here.
@@ -9,6 +12,7 @@ export function registerAccountRoutes(app, pool, requireAuth) {
     try {
       await client.query('begin');
 
+      const deletedEventIds = [];
       const { rows: events } = await client.query(`select e.* from events e where ${memberClause(1)} for update`, [userId]);
       for (const event of events) {
         const participants = (event.participants ?? []).map((p) => (String(p.user_id) === String(userId) ? { ...p, user_id: null } : p));
@@ -20,6 +24,7 @@ export function registerAccountRoutes(app, pool, requireAuth) {
           const next = participants.find((p) => p.user_id);
           if (!next) {
             await client.query('delete from events where id = $1', [event.id]);
+            deletedEventIds.push(event.id);
             continue;
           }
           managerId = next.user_id;
@@ -49,6 +54,12 @@ export function registerAccountRoutes(app, pool, requireAuth) {
       await client.query('delete from app_users where id = $1', [userId]);
 
       await client.query('commit');
+      for (const id of deletedEventIds) await removeEventFiles(id);
+      if (process.env.UPLOAD_DIR) {
+        for (const bucket of ['feedback', 'avatars']) {
+          await fs.rm(path.join(process.env.UPLOAD_DIR, bucket, userId), { recursive: true, force: true }).catch(() => {});
+        }
+      }
       res.json({ deleted: true });
     } catch (err) {
       await client.query('rollback');

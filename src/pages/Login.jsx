@@ -4,12 +4,13 @@ import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { Button } from '@/components/ui/button';
+import { GoogleButton } from '@/components/auth/GoogleButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Login() {
-  const { user, loading, signIn, signInWithGoogle } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const { t, lang } = useLang();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -68,9 +69,7 @@ export default function Login() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <Button variant="outline" className="w-full" onClick={() => signInWithGoogle()}>
-            Google
-          </Button>
+          <GoogleButton />
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {lang === 'he' ? 'אין לך חשבון?' : "Don't have an account?"}{' '}

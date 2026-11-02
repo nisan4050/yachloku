@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -22,7 +22,7 @@ export async function requestNotificationPermission() {
 
 // --- Native (Android/iOS via Capacitor + Firebase Cloud Messaging) ---
 
-async function subscribeNativePush(userId) {
+async function subscribeNativePush(_userId) {
   const { PushNotifications } = await import('@capacitor/push-notifications');
 
   let status = (await PushNotifications.checkPermissions()).receive;
@@ -33,11 +33,9 @@ async function subscribeNativePush(userId) {
 
   return new Promise((resolve, reject) => {
     PushNotifications.addListener('registration', async (token) => {
-      const { error } = await supabase
-        .from('fcm_tokens')
-        .upsert({ user_id: userId, token: token.value }, { onConflict: 'user_id,token' });
-      if (error) reject(error);
-      else resolve(token.value);
+      serverFetch('/push/fcm', { method: 'POST', body: { token: token.value } })
+        .then(() => resolve(token.value))
+        .catch(reject);
     });
     PushNotifications.addListener('registrationError', (err) => {
       reject(new Error(err.error ?? 'Push registration failed'));
@@ -46,15 +44,15 @@ async function subscribeNativePush(userId) {
   });
 }
 
-async function unsubscribeNativePush(userId) {
+async function unsubscribeNativePush(_userId) {
   const { PushNotifications } = await import('@capacitor/push-notifications');
   await PushNotifications.removeAllListeners();
-  await supabase.from('fcm_tokens').delete().eq('user_id', userId);
+  await serverFetch('/push/fcm', { method: 'DELETE' });
 }
 
 // --- Web (browser/PWA via the Web Push API) ---
 
-async function subscribeWebPush(userId) {
+async function subscribeWebPush(_userId) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
 
   const permission = await requestNotificationPermission();
@@ -69,24 +67,16 @@ async function subscribeWebPush(userId) {
   });
 
   const { endpoint, keys } = subscription.toJSON();
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    { user_id: userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    { onConflict: 'user_id,endpoint' }
-  );
-
-  if (error) throw error;
+  await serverFetch('/push/web', { method: 'POST', body: { endpoint, p256dh: keys.p256dh, auth: keys.auth } });
   return subscription;
 }
 
-async function unsubscribeWebPush(userId) {
+async function unsubscribeWebPush(_userId) {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
 
-  await supabase.from('push_subscriptions').delete().match({
-    user_id: userId,
-    endpoint: subscription.endpoint,
-  });
+  await serverFetch(`/push/web?endpoint=${encodeURIComponent(subscription.endpoint)}`, { method: 'DELETE' });
   await subscription.unsubscribe();
 }
 

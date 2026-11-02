@@ -1,14 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '@/api/supabaseClient';
 import { serverFetch, getToken, setToken, clearToken } from '@/api/server';
 
 const AuthContext = createContext(undefined);
 
-// Same OAuth client Supabase's Google provider is configured with (Project
-// Settings -> Authentication -> Providers -> Google in the Supabase
-// dashboard). Required as `webClientId` even on Android — that's what lets
-// Credential Manager mint a Google ID token Supabase will accept.
+// Web OAuth client ID. The API verifies Google ID tokens against it, and on Android it must be
+// passed as `webClientId` so Credential Manager mints a token the API will accept.
 const GOOGLE_WEB_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
 
 let socialLoginInitialized = null;
@@ -19,7 +16,7 @@ let socialLoginInitialized = null;
 // redirect, which Google actively blocks inside an embedded WebView with
 // "disallowed_useragent", and which still requires *some* browser to exist
 // on the device at all).
-async function signInWithGoogleNative() {
+async function getNativeGoogleIdToken() {
   const { SocialLogin } = await import('@capgo/capacitor-social-login');
 
   if (!socialLoginInitialized) {
@@ -30,10 +27,8 @@ async function signInWithGoogleNative() {
   await socialLoginInitialized;
 
   const { result } = await SocialLogin.login({ provider: 'google', options: {} });
-  if (!result.idToken) return { error: new Error('Google sign-in did not return an ID token') };
-
-  const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: result.idToken });
-  return { error: error ?? null };
+  if (!result.idToken) throw new Error('Google sign-in did not return an ID token');
+  return result.idToken;
 }
 
 const toAppUser = (u) => ({
@@ -84,13 +79,21 @@ export function AuthProvider({ children }) {
         return { data: null, error };
       }
     },
-    signInWithGoogle: () =>
-      Capacitor.isNativePlatform()
-        ? signInWithGoogleNative()
-        : supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo: `${window.location.origin}/` },
-          }),
+    signInWithGoogleCredential: async (idToken) => {
+      try {
+        return { error: null, data: startSession(await serverFetch('/auth/google', { method: 'POST', body: { idToken } })) };
+      } catch (error) {
+        return { error };
+      }
+    },
+    signInWithGoogle: async () => {
+      try {
+        const idToken = await getNativeGoogleIdToken();
+        return { error: null, data: startSession(await serverFetch('/auth/google', { method: 'POST', body: { idToken } })) };
+      } catch (error) {
+        return { error };
+      }
+    },
     signOut: async () => {
       clearToken();
       setSession(null);
