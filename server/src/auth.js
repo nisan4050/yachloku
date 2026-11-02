@@ -34,3 +34,15 @@ export async function hashPassword(password) {
 export async function checkPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
+
+// EventSource cannot send headers, so SSE endpoints take the token from the query string.
+export function requireAuthStream(req, res, next) {
+  const token = typeof req.query.token === 'string' ? req.query.token : null;
+  if (!token) return res.status(401).json({ error: 'missing token' });
+  try {
+    req.userId = jwt.verify(token, JWT_SECRET).sub;
+    next();
+  } catch {
+    res.status(401).json({ error: 'invalid token' });
+  }
+}

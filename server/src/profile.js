@@ -1,4 +1,5 @@
 import { wrap, getMemberEvent, jsonVal } from './lib.js';
+import { emitToUser } from './realtime.js';
 
 const PREF_KEY_BY_TYPE = { chat: 'chat', poll: 'chat', expense: 'expenses', settlement: 'balance_changes' };
 
@@ -49,11 +50,13 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
 
   app.post('/notifications/read-all', requireAuth, wrap(async (req, res) => {
     await pool.query('update notifications set read = true where user_id = $1 and read = false', [req.userId]);
+    emitToUser(req.userId, 'notification', { eventType: 'UPDATE' });
     res.status(204).end();
   }));
 
   app.post('/notifications/:id/read', requireAuth, wrap(async (req, res) => {
     await pool.query('update notifications set read = true where id = $1 and user_id = $2', [req.params.id, req.userId]);
+    emitToUser(req.userId, 'notification', { eventType: 'UPDATE' });
     res.status(204).end();
   }));
 
@@ -83,6 +86,7 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
        select u, $2, $3, $4, $5, $6::jsonb from unnest($1::uuid[]) as u returning *`,
       [recipients, event.id, type, title, body ?? null, JSON.stringify(data ?? {})]
     );
+    rows.forEach((n) => emitToUser(n.user_id, 'notification', { eventType: 'INSERT', row: n }));
     await Promise.allSettled(rows.map((n) => deliverPush(n)));
     res.json({ sent: rows.length });
   }));

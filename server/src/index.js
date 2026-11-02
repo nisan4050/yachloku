@@ -1,6 +1,6 @@
 import express from 'express';
 import pg from 'pg';
-import { issueToken, requireAuth, verifyGoogleIdToken, hashPassword, checkPassword } from './auth.js';
+import { issueToken, requireAuth, requireAuthStream, verifyGoogleIdToken, hashPassword, checkPassword } from './auth.js';
 import { migrate } from './migrate.js';
 import { wrap } from './lib.js';
 import { registerEventRoutes } from './events.js';
@@ -8,6 +8,7 @@ import { registerExpenseRoutes } from './expenses.js';
 import { registerPollRoutes } from './polls.js';
 import { registerProfileRoutes } from './profile.js';
 import { registerAccountRoutes } from './account.js';
+import { registerChatRoutes } from './chat.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000, CORS_ORIGINS = '' } = process.env;
 
@@ -110,6 +111,7 @@ registerExpenseRoutes(app, pool, requireAuth);
 registerPollRoutes(app, pool, requireAuth);
 registerProfileRoutes(app, pool, requireAuth);
 registerAccountRoutes(app, pool, requireAuth);
+registerChatRoutes(app, pool, requireAuth, requireAuthStream);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

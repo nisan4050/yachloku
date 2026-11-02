@@ -1,3 +1,4 @@
+import { openStream } from './sse.mjs';
 const API = process.env.API_URL ?? 'https://yachloku-production-2397.up.railway.app';
 const rnd = Math.random().toString(36).slice(2, 8);
 const results = [];
@@ -99,6 +100,74 @@ try {
   check('A receives notification', list.data.length === 1 && list.data[0].read === false);
   await call(`/notifications/${list.data[0].id}/read`, { method: 'POST', token: ta });
   check('mark read', (await call('/notifications', { token: ta })).data[0].read === true);
+
+  // ---- chat + realtime ----
+  const sa = openStream(API, `/events/${eid}/stream`, ta);
+  const sb = openStream(API, `/events/${eid}/stream`, tb);
+  const su = openStream(API, '/stream', ta);
+  await new Promise((r) => setTimeout(r, 1500));
+  const seen = (s, name, pred = () => true) => s.events.some((e) => e.name === name && pred(e.data));
+  const wait = async (fn, ms = 4000) => { const t = Date.now(); while (Date.now() - t < ms) { if (fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return fn(); };
+
+  const g1 = await call(`/events/${eid}/group-messages`, { method: 'POST', token: ta, body: { content: 'hello group' } });
+  check('send group message', g1.status === 201 && g1.data.from_user_id === idA && g1.data.from_participant_id === partA.id);
+  check('B receives group INSERT in realtime', await wait(() => seen(sb, 'group_message', (d) => d.eventType === 'INSERT' && d.row.id === g1.data.id)));
+  check('empty message rejected', (await call(`/events/${eid}/group-messages`, { method: 'POST', token: ta, body: {} })).status === 400);
+  check('B cannot edit A message', (await call(`/group-messages/${g1.data.id}`, { method: 'PATCH', token: tb, body: { content: 'hack' } })).status === 403);
+  const ed = await call(`/group-messages/${g1.data.id}`, { method: 'PATCH', token: ta, body: { content: 'hello edited' } });
+  check('author edits', ed.status === 200 && ed.data.content === 'hello edited' && !!ed.data.edited_at);
+  const r1 = await call(`/group-messages/${g1.data.id}/react`, { method: 'POST', token: tb, body: { emoji: '👍' } });
+  check('react adds', r1.status === 200 && r1.data.reactions['👍']?.includes(idB));
+  check('A receives reaction UPDATE', await wait(() => seen(sa, 'group_message', (d) => d.eventType === 'UPDATE' && d.row.reactions?.['👍']?.includes(idB))));
+  const r2 = await call(`/group-messages/${g1.data.id}/react`, { method: 'POST', token: tb, body: { emoji: '👍' } });
+  check('react toggles off', r2.status === 200 && !r2.data.reactions['👍']);
+  const pin = await call(`/group-messages/${g1.data.id}/pin`, { method: 'POST', token: tb });
+  check('member pins', pin.status === 200 && !!pin.data.pinned_at);
+  const rd = await call(`/events/${eid}/group-messages/read`, { method: 'POST', token: tb });
+  check('mark group read', rd.status === 200 && rd.data.updated === 1);
+  check('read_by contains B', (await call(`/events/${eid}/group-messages`, { token: ta })).data[0].read_by.includes(idB));
+  check('B cannot delete A message', (await call(`/group-messages/${g1.data.id}`, { method: 'DELETE', token: tb })).status === 403);
+  const g2 = await call(`/events/${eid}/group-messages`, { method: 'POST', token: tb, body: { content: 'from B', reply_to_id: g1.data.id } });
+  check('reply to message', g2.status === 201 && g2.data.reply_to_id === g1.data.id);
+  const del = await call(`/group-messages/${g2.data.id}`, { method: 'DELETE', token: ta });
+  check('manager deletes (soft)', del.status === 200 && !!del.data.deleted_at && del.data.content === null);
+
+  await call(`/events/${eid}/typing`, { method: 'POST', token: ta, body: { scope: 'group', isTyping: true } });
+  check('typing relayed to B', await wait(() => seen(sb, 'typing', (d) => d.user_id === idA && d.is_typing === true)));
+
+  const d1 = await call(`/events/${eid}/private-messages`, { method: 'POST', token: ta, body: { to_participant_id: partB.id, content: 'secret hi' } });
+  check('send private message', d1.status === 201 && d1.data.to_user_id === idB);
+  check('B receives DM in realtime', await wait(() => seen(sb, 'private_message', (d) => d.eventType === 'INSERT' && d.row.id === d1.data.id)));
+  check('DM thread (A side)', (await call(`/events/${eid}/private-messages?with=${partB.id}`, { token: ta })).data.length === 1);
+  check('DM thread (B side)', (await call(`/events/${eid}/private-messages?with=${partA.id}`, { token: tb })).data.length === 1);
+  check('B unread count', (await call(`/events/${eid}/private-unread`, { token: tb })).data[partA.id] === 1);
+  check('unknown recipient rejected', (await call(`/events/${eid}/private-messages`, { method: 'POST', token: ta, body: { to_participant_id: 'nope', content: 'x' } })).status === 400);
+  check('B marks DM read', (await call(`/events/${eid}/private-messages/read`, { method: 'POST', token: tb, body: { fromParticipantId: partA.id } })).data.updated === 1);
+  check('unread cleared', Object.keys((await call(`/events/${eid}/private-unread`, { token: tb })).data).length === 0);
+  await call(`/events/${eid}/typing`, { method: 'POST', token: ta, body: { scope: 'dm', with: partB.id, isTyping: true } });
+  check('DM typing relayed to B only', await wait(() => seen(sb, 'typing', (d) => d.scope === 'dm' && d.user_id === idA)));
+  check('DM typing not echoed to A', !seen(sa, 'typing', (d) => d.scope === 'dm'));
+
+  const msg = (content) => ({ messages: [{ key: `settlement:${partB.id}:${partA.id}`, fromParticipantId: partB.id, toParticipantId: partA.id, content }] });
+  const s1 = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: msg('You owe 40') });
+  check('settlement message inserted', s1.status === 200 && s1.data.changed === 1);
+  const s1b = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: msg('You owe 40') });
+  check('settlement sync is idempotent', s1b.data.changed === 0);
+  const s2 = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: msg('You owe 55') });
+  check('settlement message updated in place', s2.data.changed === 1);
+  const thread = (await call(`/events/${eid}/private-messages?with=${partB.id}`, { token: tb })).data.filter((m) => m.is_system && !m.deleted_at);
+  check('exactly one live system message', thread.length === 1 && thread[0].content === 'You owe 55');
+  const s3 = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: { messages: [] } });
+  check('settled debts remove the message', s3.data.changed === 1);
+  check('media count', (await call(`/events/${eid}/media-count`, { token: ta })).data.count === 0);
+
+  const nf = await call(`/events/${eid}/notify`, { method: 'POST', token: tb, body: { type: 'chat', title: 'ping', body: 'x', data: {} } });
+  check('notification pushed over user stream', nf.data.sent === 1 && (await wait(() => seen(su, 'notification', (d) => d.eventType === 'INSERT'))));
+  const stranger = await call('/auth/register', { method: 'POST', body: { email: `qa-c-${rnd}@yachloku-qa.invalid`, password: pw, name: 'QA C' } });
+  const denied = await fetch(`${API}/events/${eid}/stream?token=${stranger.data.token}`);
+  check('stranger cannot open the event stream', denied.status === 404);
+  await call('/me', { method: 'DELETE', token: stranger.data.token });
+  sa.close(); sb.close(); su.close();
 
   check('delete expense', (await call(`/expenses/${ex.data.id}`, { method: 'DELETE', token: tb })).status === 204);
   check('delete payment', (await call(`/payments/${pay.data.id}`, { method: 'DELETE', token: tb })).status === 204);
