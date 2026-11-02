@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/api/supabaseClient';
+import { serverFetch, getToken, setToken, clearToken } from '@/api/server';
 
 const AuthContext = createContext(undefined);
 
@@ -35,34 +36,57 @@ async function signInWithGoogleNative() {
   return { error: error ?? null };
 }
 
+const toAppUser = (u) => ({
+  id: u.id,
+  email: u.email,
+  user_metadata: { full_name: u.name },
+});
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    if (getToken()) {
+      serverFetch('/auth/me')
+        .then(({ user }) => setSession({ user: toAppUser(user) }))
+        .catch(() => clearToken())
+        .finally(() => setLoading(false));
+    } else {
       setLoading(false);
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
-
-    return () => subscription.subscription.unsubscribe();
+    }
   }, []);
+
+  const startSession = ({ token, user }) => {
+    setToken(token);
+    const next = { user: toAppUser(user) };
+    setSession(next);
+    return { session: next };
+  };
 
   const value = {
     session,
     user: session?.user ?? null,
     loading,
-    signUp: (email, password, fullName) =>
-      supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      }),
-    signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    signUp: async (email, password, fullName) => {
+      try {
+        const data = await serverFetch('/auth/register', {
+          method: 'POST',
+          body: { email, password, name: fullName },
+        });
+        return { data: startSession(data), error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
+    signIn: async (email, password) => {
+      try {
+        const data = await serverFetch('/auth/login', { method: 'POST', body: { email, password } });
+        return { data: startSession(data), error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
     signInWithGoogle: () =>
       Capacitor.isNativePlatform()
         ? signInWithGoogleNative()
@@ -70,7 +94,10 @@ export function AuthProvider({ children }) {
             provider: 'google',
             options: { redirectTo: `${window.location.origin}/` },
           }),
-    signOut: () => supabase.auth.signOut(),
+    signOut: async () => {
+      clearToken();
+      setSession(null);
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
