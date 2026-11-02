@@ -24,6 +24,8 @@ const idA = a.data.user.id, idB = b.data.user.id;
 try {
   const meA = await call('/auth/me', { token: ta });
   check('regular users are not admins', meA.data.user.isAdmin === false && (await call('/admin/overview', { token: ta })).status === 403 && (await call('/admin/feedback', { token: ta })).status === 403);
+  check('forgot-password answers identically for known and unknown emails', JSON.stringify((await call('/auth/forgot', { method: 'POST', body: { email: `qa-a-${rnd}@yachloku-qa.invalid` } })).data) === JSON.stringify((await call('/auth/forgot', { method: 'POST', body: { email: 'nobody-' + rnd + '@yachloku-qa.invalid' } })).data));
+  check('reset rejects a bad token and a weak password', (await call('/auth/reset', { method: 'POST', body: { token: 'nope', password: 'whatever123' } })).status === 400 && (await call('/auth/reset', { method: 'POST', body: { token: 'nope', password: '1' } })).status === 400);
   const login = await call('/auth/login', { method: 'POST', body: { email: `qa-a-${rnd}@yachloku-qa.invalid`, password: pw } });
   check('login', login.status === 200 && !!login.data.token);
 

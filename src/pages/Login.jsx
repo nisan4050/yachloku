@@ -58,6 +58,9 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+            <Link to="/forgot-password" className="-mt-2 text-sm font-medium text-primary hover:underline">
+              {lang === 'he' ? 'שכחתי סיסמה' : 'Forgot password?'}
+            </Link>
             <Button type="submit" disabled={submitting}>
               {t('login')}
             </Button>

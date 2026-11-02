@@ -72,6 +72,13 @@ export function AuthProvider({ children }) {
         return { data: null, error };
       }
     },
+    resetPassword: async (token, password) => {
+      try {
+        return { error: null, data: startSession(await serverFetch('/auth/reset', { method: 'POST', body: { token, password } })) };
+      } catch (error) {
+        return { error };
+      }
+    },
     signIn: async (email, password) => {
       try {
         const data = await serverFetch('/auth/login', { method: 'POST', body: { email, password } });
