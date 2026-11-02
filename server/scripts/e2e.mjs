@@ -55,6 +55,7 @@ try {
     date: '2026-11-02', notes: 'qa' } });
   check('create expense (jsonb + enum)', ex.status === 201 && ex.data.created_by === idA && Array.isArray(ex.data.paid_by), JSON.stringify(ex.data).slice(0, 80));
   const exs = await call(`/events/${eid}/expenses`, { token: tb });
+  check('amounts are numbers and dates are plain YYYY-MM-DD', typeof exs.data[0]?.amount === 'number' && exs.data[0]?.date === '2026-11-02');
   check('B lists expenses', exs.status === 200 && exs.data.length === 1);
   const upd = await call(`/expenses/${ex.data.id}`, { method: 'PATCH', token: tb, body: { amount: 150, notes: 'edited' } });
   check('member edits expense', upd.status === 200 && Number(upd.data.amount) === 150);

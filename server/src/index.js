@@ -20,6 +20,10 @@ if (!DATABASE_URL || !JWT_SECRET) {
   process.exit(1);
 }
 
+// Match what the frontend was built against: numeric columns as numbers, DATE columns as 'YYYY-MM-DD' strings.
+pg.types.setTypeParser(1700, (v) => parseFloat(v));
+pg.types.setTypeParser(1082, (v) => v);
+
 const pool = new pg.Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 await migrate(pool);
 
