@@ -44,17 +44,14 @@ const toAppUser = (u) => ({
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(getToken()));
 
   useEffect(() => {
-    if (getToken()) {
-      serverFetch('/auth/me')
-        .then(({ user }) => setSession({ user: toAppUser(user) }))
-        .catch(() => clearToken())
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    if (!getToken()) return;
+    serverFetch('/auth/me')
+      .then(({ user }) => setSession({ user: toAppUser(user) }))
+      .catch(() => clearToken())
+      .finally(() => setLoading(false));
   }, []);
 
   const startSession = ({ token, user }) => {

@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { useLang } from '@/hooks/useLang';
 import { useDeleteEvent } from '@/hooks/useEvents';
-import { supabase } from '@/api/supabaseClient';
+import { getMediaCount } from '@/api/messages';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -20,14 +20,9 @@ export function DeleteEventDialog({ event, open, onOpenChange }) {
 
   useEffect(() => {
     if (!open) return;
-    const countMedia = async () => {
-      const [groupMsgs, chatMsgs] = await Promise.all([
-        supabase.from('group_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
-        supabase.from('chat_messages').select('media_url', { count: 'exact' }).eq('event_id', event.id).not('media_url', 'is', null),
-      ]);
-      setMediaCount((groupMsgs.count ?? 0) + (chatMsgs.count ?? 0));
-    };
-    countMedia();
+    getMediaCount(event.id)
+      .then(({ count }) => setMediaCount(count))
+      .catch(() => setMediaCount(0));
   }, [open, event.id]);
 
   const handleDeleteEvent = async () => {

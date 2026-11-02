@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/api/supabaseClient';
+import { subscribeToUser } from '@/api/realtime';
 import * as notificationsApi from '@/api/notifications';
 
 export function useNotifications(userId) {
@@ -13,15 +13,9 @@ export function useNotifications(userId) {
 
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`notifications-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-        () => queryClient.invalidateQueries({ queryKey: ['notifications', userId] })
-      )
-      .subscribe();
-    return () => supabase.removeChannel(channel);
+    return subscribeToUser({
+      notification: () => queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
+    });
   }, [userId, queryClient]);
 
   return query;

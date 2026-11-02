@@ -17,7 +17,17 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
-import { supabase } from '@/api/supabaseClient';
+import {
+  listGroupMessages,
+  sendGroupMessage,
+  markGroupRead,
+  editMessage,
+  deleteMessage,
+  togglePin,
+  toggleReaction,
+  sendTyping,
+} from '@/api/messages';
+import { subscribeToEvent } from '@/api/realtime';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { formatChatTimestamp } from '@/lib/dateUtils';
@@ -116,6 +126,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   const textInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingSentAtRef = useRef(0);
   const pressTimerRef = useRef(null);
   const pressMovedRef = useRef(false);
 
@@ -138,37 +149,33 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   useEffect(() => {
     let active = true;
 
-    supabase
-      .from('group_messages')
-      .select('*')
-      .eq('event_id', event.id)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
+    listGroupMessages(event.id)
+      .then((data) => {
         if (active) {
           setMessages(data ?? []);
           setLoading(false);
         }
-      });
+      })
+      .catch(() => active && setLoading(false));
 
-    const channel = supabase
-      .channel(`group-messages-${event.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `event_id=eq.${event.id}` },
-        (payload) => setMessages((prev) => [...prev, payload.new])
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `event_id=eq.${event.id}` },
-        (payload) => setMessages((prev) => prev.map((m) => (m.id === payload.new.id ? payload.new : m)))
-      )
-      .subscribe();
+    const unsubscribe = subscribeToEvent(event.id, {
+      group_message: ({ eventType, row }) =>
+        setMessages((prev) =>
+          eventType === 'INSERT'
+            ? prev.some((m) => m.id === row.id) ? prev : [...prev, row]
+            : prev.map((m) => (m.id === row.id ? row : m))
+        ),
+      typing: (payload) => {
+        if (payload.scope !== 'group' || payload.user_id === user.id) return;
+        setTyping(payload.is_typing ? payload.user_id : null);
+      },
+    });
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, [event.id]);
+  }, [event.id, user.id]);
 
   useEffect(() => {
     if (scrollToMessageId || scrollToPollId) return;
@@ -195,11 +202,11 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
       if (!rawContent) return;
       const content = replaceMentions(rawContent, participantsById);
       setText('');
-      const { error } = await supabase
-        .from('group_messages')
-        .update({ content, edited_at: new Date().toISOString() })
-        .eq('id', editingId);
-      if (error) toast.error(lang === 'he' ? 'עריכת ההודעה נכשלה' : 'Failed to edit message');
+      try {
+        await editMessage('group', editingId, content);
+      } catch {
+        toast.error(lang === 'he' ? 'עריכת ההודעה נכשלה' : 'Failed to edit message');
+      }
       setEditingId(null);
       return;
     }
@@ -207,9 +214,6 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
     if (!rawContent && !pendingAttachment) return;
 
     const payload = {
-      event_id: event.id,
-      from_participant_id: me.id,
-      from_user_id: user.id,
       content: rawContent ? replaceMentions(rawContent, participantsById) : null,
       reply_to_id: replyingTo?.id || null,
     };
@@ -230,8 +234,7 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
         payload.location = { lat: pendingAttachment.lat, lng: pendingAttachment.lng };
       }
 
-      const { data: inserted, error } = await supabase.from('group_messages').insert(payload).select().single();
-      if (error) throw error;
+      const inserted = await sendGroupMessage(event.id, payload);
 
       const notifData = { tab: 'group-chat', msg: inserted.id };
       const bodyText =
@@ -287,11 +290,11 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   };
 
   const handleDelete = async (messageId) => {
-    const { error } = await supabase
-      .from('group_messages')
-      .update({ deleted_at: new Date().toISOString(), content: null, media_url: null, media_meta: null, location: null })
-      .eq('id', messageId);
-    if (error) toast.error(lang === 'he' ? 'מחיקת ההודעה נכשלה' : 'Failed to delete message');
+    try {
+      await deleteMessage('group', messageId);
+    } catch {
+      toast.error(lang === 'he' ? 'מחיקת ההודעה נכשלה' : 'Failed to delete message');
+    }
     setMenuOpenId(null);
   };
 
@@ -309,11 +312,11 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   };
 
   const handlePin = async (message) => {
-    const { error } = await supabase
-      .from('group_messages')
-      .update({ pinned_at: message.pinned_at ? null : new Date().toISOString() })
-      .eq('id', message.id);
-    if (error) toast.error(lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    try {
+      await togglePin('group', message.id);
+    } catch {
+      toast.error(lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    }
     setMenuOpenId(null);
   };
 
@@ -369,17 +372,9 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
   };
 
   const handleReaction = async (messageId, emoji) => {
-    const message = messages.find((m) => m.id === messageId);
-    if (!message) return;
-    const reactions = { ...(message.reactions || {}) };
-    const current = reactions[emoji] || [];
-    const next = current.includes(user.id) ? current.filter((id) => id !== user.id) : [...current, user.id];
-
-    if (next.length === 0) delete reactions[emoji];
-    else reactions[emoji] = next;
-
-    const { error } = await supabase.from('group_messages').update({ reactions }).eq('id', messageId);
-    if (error) {
+    try {
+      await toggleReaction('group', messageId, emoji);
+    } catch (error) {
       console.error(error);
       toast.error(lang === 'he' ? 'הריאקציה נכשלה' : 'Reaction failed');
     }
@@ -389,36 +384,21 @@ export function GroupChat({ event, scrollToMessageId, scrollToPollId }) {
     setText(value);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    const channel = supabase.channel(`typing-${event.id}`);
-    channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, is_typing: true } });
+    if (!typingSentAtRef.current || Date.now() - typingSentAtRef.current > 2000) {
+      typingSentAtRef.current = Date.now();
+      sendTyping(event.id, { scope: 'group', isTyping: true });
+    }
 
     typingTimeoutRef.current = setTimeout(() => {
-      channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, is_typing: false } });
+      typingSentAtRef.current = 0;
+      sendTyping(event.id, { scope: 'group', isTyping: false });
     }, 3000);
   };
 
-  useEffect(() => {
-    const channel = supabase
-      .channel(`typing-${event.id}`)
-      .on('broadcast', { event: 'typing' }, (payload) => {
-        if (payload.payload.user_id === user.id) return;
-        setTyping(payload.payload.is_typing ? payload.payload.user_id : null);
-      })
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
-  }, [event.id, user.id]);
 
   useEffect(() => {
-    const unreadIds = messages.filter((m) => m.from_user_id !== user.id && !m.read_by?.includes(user.id)).map((m) => m.id);
-    unreadIds.forEach((id) => {
-      const m = messages.find((x) => x.id === id);
-      supabase
-        .from('group_messages')
-        .update({ read_by: [...(m.read_by || []), user.id] })
-        .eq('id', id)
-        .then();
-    });
+    const hasUnread = messages.some((m) => m.from_user_id !== user.id && !m.read_by?.includes(user.id));
+    if (hasUnread) markGroupRead(event.id).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 

@@ -19,7 +19,17 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
-import { supabase } from '@/api/supabaseClient';
+import {
+  listPrivateMessages,
+  sendPrivateMessage,
+  markPrivateRead,
+  editMessage,
+  deleteMessage,
+  togglePin,
+  toggleReaction,
+  sendTyping,
+} from '@/api/messages';
+import { subscribeToEvent } from '@/api/realtime';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { formatChatTimestamp } from '@/lib/dateUtils';
@@ -95,6 +105,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   const fileInputRef = useRef(null);
   const textInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingSentAtRef = useRef(0);
   const pressTimerRef = useRef(null);
   const pressMovedRef = useRef(false);
 
@@ -105,58 +116,43 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
     let active = true;
 
     const fetchMessages = async () => {
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('event_id', event.id)
-        .or(
-          `and(from_participant_id.eq.${me.id},to_participant_id.eq.${otherParticipant.id}),and(from_participant_id.eq.${otherParticipant.id},to_participant_id.eq.${me.id})`
-        )
-        .order('created_at', { ascending: true });
-
-      if (active) {
-        setMessages(data ?? []);
-        setLoading(false);
+      try {
+        const data = await listPrivateMessages(event.id, otherParticipant.id);
+        if (active) {
+          setMessages(data ?? []);
+          setLoading(false);
+        }
+        await markPrivateRead(event.id, otherParticipant.id);
+      } catch {
+        if (active) setLoading(false);
       }
-
-      await supabase
-        .from('chat_messages')
-        .update({ read: true })
-        .eq('event_id', event.id)
-        .eq('from_participant_id', otherParticipant.id)
-        .eq('to_user_id', user.id)
-        .eq('read', false);
     };
 
     fetchMessages();
 
-    const channel = supabase
-      .channel(`chat-${event.id}-${[me.id, otherParticipant.id].sort().join('-')}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `event_id=eq.${event.id}` },
-        (payload) => {
-          const m = payload.new;
-          const involvesPair =
-            (m.from_participant_id === me.id && m.to_participant_id === otherParticipant.id) ||
-            (m.from_participant_id === otherParticipant.id && m.to_participant_id === me.id);
-          if (!involvesPair) return;
-          setMessages((prev) => [...prev, m]);
-          if (m.to_user_id === user.id) {
-            supabase.from('chat_messages').update({ read: true }).eq('id', m.id);
-          }
+    const involvesPair = (m) =>
+      (m.from_participant_id === me.id && m.to_participant_id === otherParticipant.id) ||
+      (m.from_participant_id === otherParticipant.id && m.to_participant_id === me.id);
+
+    const unsubscribe = subscribeToEvent(event.id, {
+      private_message: ({ eventType, row }) => {
+        if (!involvesPair(row)) return;
+        if (eventType === 'INSERT') {
+          setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+          if (row.to_user_id === user.id) markPrivateRead(event.id, otherParticipant.id).catch(() => {});
+        } else {
+          setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `event_id=eq.${event.id}` },
-        (payload) => setMessages((prev) => prev.map((m) => (m.id === payload.new.id ? payload.new : m)))
-      )
-      .subscribe();
+      },
+      typing: (payload) => {
+        if (payload.scope !== 'dm' || payload.user_id !== otherParticipant.user_id) return;
+        setTyping(payload.is_typing);
+      },
+    });
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id, me?.id, otherParticipant.id, user.id]);
@@ -174,25 +170,16 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
-  useEffect(() => {
-    const channel = supabase
-      .channel(`typing-dm-${event.id}-${[me?.id, otherParticipant.id].sort().join('-')}`)
-      .on('broadcast', { event: 'typing' }, (payload) => {
-        if (payload.payload.user_id === user.id) return;
-        setTyping(payload.payload.is_typing);
-      })
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id, me?.id, otherParticipant.id, user.id]);
-
   const handleTyping = (value) => {
     setText(value);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    const channel = supabase.channel(`typing-dm-${event.id}-${[me.id, otherParticipant.id].sort().join('-')}`);
-    channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, is_typing: true } });
+    if (!typingSentAtRef.current || Date.now() - typingSentAtRef.current > 2000) {
+      typingSentAtRef.current = Date.now();
+      sendTyping(event.id, { scope: 'dm', with: otherParticipant.id, isTyping: true });
+    }
     typingTimeoutRef.current = setTimeout(() => {
-      channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, is_typing: false } });
+      typingSentAtRef.current = 0;
+      sendTyping(event.id, { scope: 'dm', with: otherParticipant.id, isTyping: false });
     }, 3000);
   };
 
@@ -216,11 +203,11 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
     if (editingId) {
       if (!rawContent) return;
       setText('');
-      const { error } = await supabase
-        .from('chat_messages')
-        .update({ content: rawContent, edited_at: new Date().toISOString() })
-        .eq('id', editingId);
-      if (error) toast.error(lang === 'he' ? 'עריכת ההודעה נכשלה' : 'Failed to edit message');
+      try {
+        await editMessage('private', editingId, rawContent);
+      } catch {
+        toast.error(lang === 'he' ? 'עריכת ההודעה נכשלה' : 'Failed to edit message');
+      }
       setEditingId(null);
       return;
     }
@@ -228,11 +215,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
     if (!rawContent && !pendingAttachment) return;
 
     const payload = {
-      event_id: event.id,
-      from_participant_id: me.id,
       to_participant_id: otherParticipant.id,
-      from_user_id: user.id,
-      to_user_id: otherParticipant.user_id,
       content: rawContent || null,
       reply_to_id: replyingTo?.id || null,
     };
@@ -253,8 +236,7 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
         payload.location = { lat: pendingAttachment.lat, lng: pendingAttachment.lng };
       }
 
-      const { data: inserted, error } = await supabase.from('chat_messages').insert(payload).select().single();
-      if (error) throw error;
+      const inserted = await sendPrivateMessage(event.id, payload);
 
       notifyEventMembers({
         event: { ...event, participants: event.participants.filter((p) => p.id === otherParticipant.id) },
@@ -284,11 +266,11 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   };
 
   const handleDelete = async (messageId) => {
-    const { error } = await supabase
-      .from('chat_messages')
-      .update({ deleted_at: new Date().toISOString(), content: null, media_url: null, media_meta: null, location: null })
-      .eq('id', messageId);
-    if (error) toast.error(lang === 'he' ? 'מחיקת ההודעה נכשלה' : 'Failed to delete message');
+    try {
+      await deleteMessage('private', messageId);
+    } catch {
+      toast.error(lang === 'he' ? 'מחיקת ההודעה נכשלה' : 'Failed to delete message');
+    }
     setMenuOpenId(null);
   };
 
@@ -306,11 +288,11 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   };
 
   const handlePin = async (message) => {
-    const { error } = await supabase
-      .from('chat_messages')
-      .update({ pinned_at: message.pinned_at ? null : new Date().toISOString() })
-      .eq('id', message.id);
-    if (error) toast.error(lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    try {
+      await togglePin('private', message.id);
+    } catch {
+      toast.error(lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
+    }
     setMenuOpenId(null);
   };
 
@@ -354,16 +336,9 @@ export function PrivateChatThread({ event, otherParticipant, onBack, scrollToMes
   };
 
   const handleReaction = async (messageId, emoji) => {
-    const message = messages.find((m) => m.id === messageId);
-    if (!message) return;
-    const reactions = { ...(message.reactions || {}) };
-    const current = reactions[emoji] || [];
-    const next = current.includes(user.id) ? current.filter((id) => id !== user.id) : [...current, user.id];
-    if (next.length === 0) delete reactions[emoji];
-    else reactions[emoji] = next;
-
-    const { error } = await supabase.from('chat_messages').update({ reactions }).eq('id', messageId);
-    if (error) {
+    try {
+      await toggleReaction('private', messageId, emoji);
+    } catch (error) {
       console.error(error);
       toast.error(lang === 'he' ? 'הריאקציה נכשלה' : 'Reaction failed');
     }

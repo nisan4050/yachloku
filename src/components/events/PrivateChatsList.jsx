@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/api/supabaseClient';
+import { getPrivateUnread } from '@/api/messages';
+import { subscribeToEvent } from '@/api/realtime';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,33 +26,9 @@ export function PrivateChatsList({ event, openWithParticipantId, scrollToMessage
   }, [openWithParticipantId, others]);
 
   useEffect(() => {
-    const fetchUnread = async () => {
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('from_participant_id')
-        .eq('event_id', event.id)
-        .eq('to_user_id', user.id)
-        .eq('read', false);
-
-      const counts = {};
-      for (const row of data ?? []) {
-        counts[row.from_participant_id] = (counts[row.from_participant_id] ?? 0) + 1;
-      }
-      setUnreadByParticipant(counts);
-    };
-
+    const fetchUnread = () => getPrivateUnread(event.id).then(setUnreadByParticipant).catch(() => {});
     fetchUnread();
-
-    const channel = supabase
-      .channel(`private-chats-${event.id}-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'chat_messages', filter: `event_id=eq.${event.id}` },
-        fetchUnread
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
+    return subscribeToEvent(event.id, { private_message: fetchUnread });
   }, [event.id, user.id]);
 
   if (others.length === 0) {
