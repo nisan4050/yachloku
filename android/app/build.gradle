@@ -1,5 +1,8 @@
 apply plugin: 'com.android.application'
 
+// CI passes the run number so every build can install over the previous one.
+def appVersionCode = Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+
 android {
     namespace = "com.yachloku.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,9 +10,8 @@ android {
         applicationId "com.yachloku.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // CI passes the run number so every build can install over the previous one.
-        versionCode (System.getenv('VERSION_CODE') ?: '1').toInteger()
-        versionName "1.0.${System.getenv('VERSION_CODE') ?: '0'}"
+        versionCode appVersionCode
+        versionName "1.0.${appVersionCode}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
