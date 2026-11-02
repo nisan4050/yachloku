@@ -3,7 +3,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { wrap, getMemberEvent } from './lib.js';
 
-const { UPLOAD_DIR, PUBLIC_URL } = process.env;
+const { UPLOAD_DIR, PUBLIC_URL, RAILWAY_ENVIRONMENT, RAILWAY_VOLUME_MOUNT_PATH } = process.env;
+
+// On Railway the container disk is wiped on every deploy, so uploads must live on an attached volume.
+const storagePersistent = Boolean(UPLOAD_DIR) && (!RAILWAY_ENVIRONMENT || (RAILWAY_VOLUME_MOUNT_PATH && path.resolve(UPLOAD_DIR).startsWith(path.resolve(RAILWAY_VOLUME_MOUNT_PATH))));
+if (UPLOAD_DIR && !storagePersistent) console.error('UPLOAD_DIR is not on a persistent volume; uploads are disabled');
 const MAX_BYTES = 25 * 1024 * 1024;
 const EVENT_BUCKETS = new Set(['receipts', 'event-photos', 'chat-media']);
 const USER_BUCKETS = new Set(['feedback', 'avatars']);
@@ -27,7 +31,7 @@ export function registerUploadRoutes(app, pool, requireAuth) {
     requireAuth,
     express.raw({ type: () => true, limit: MAX_BYTES }),
     wrap(async (req, res) => {
-      if (!UPLOAD_DIR) return res.status(503).json({ error: 'file storage is not configured' });
+      if (!storagePersistent) return res.status(503).json({ error: 'file storage is not configured' });
       const { bucket } = req.params;
       const match = FILE_RE.exec(String(req.query.path ?? ''));
       if (!match || !(EVENT_BUCKETS.has(bucket) || USER_BUCKETS.has(bucket))) return res.status(400).json({ error: 'invalid bucket or path' });
