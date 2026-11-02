@@ -7,6 +7,7 @@ import { registerEventRoutes } from './events.js';
 import { registerExpenseRoutes } from './expenses.js';
 import { registerPollRoutes } from './polls.js';
 import { registerProfileRoutes } from './profile.js';
+import { registerAccountRoutes } from './account.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000, CORS_ORIGINS = '' } = process.env;
 
@@ -108,6 +109,7 @@ registerEventRoutes(app, pool, requireAuth);
 registerExpenseRoutes(app, pool, requireAuth);
 registerPollRoutes(app, pool, requireAuth);
 registerProfileRoutes(app, pool, requireAuth);
+registerAccountRoutes(app, pool, requireAuth);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
