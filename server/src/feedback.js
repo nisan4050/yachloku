@@ -1,29 +1,21 @@
 import { wrap } from './lib.js';
+import { sendEmail, escapeHtml, mailEnabled } from './mail.js';
 
-const { RESEND_API_KEY, FEEDBACK_TO = 'nisan4050@gmail.com', FEEDBACK_FROM = 'Yachloku Feedback <onboarding@resend.dev>' } = process.env;
-
-const escapeHtml = (s) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const { FEEDBACK_TO = 'nisan4050@gmail.com' } = process.env;
 
 async function emailDeveloper(row) {
-  if (!RESEND_API_KEY) return;
+  if (!mailEnabled) return;
   const html = `
     <p><strong>From:</strong> ${escapeHtml(row.sender_name)} &lt;${escapeHtml(row.sender_email)}&gt;</p>
     <p><strong>User id:</strong> ${escapeHtml(row.user_id)}<br><strong>Sent:</strong> ${escapeHtml(row.created_at.toISOString())}</p>
     <p>${escapeHtml(row.message).replace(/\n/g, '<br>')}</p>
     ${row.attachment_url ? `<p><a href="${escapeHtml(row.attachment_url)}">Attachment</a></p>` : ''}`;
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: FEEDBACK_FROM,
-      to: [FEEDBACK_TO],
-      reply_to: row.sender_email || undefined,
-      subject: `Yachloku feedback from ${row.sender_name || row.sender_email || 'a user'}`,
-      html,
-    }),
+  await sendEmail({
+    to: FEEDBACK_TO,
+    replyTo: row.sender_email,
+    subject: `Yachloku feedback from ${row.sender_name || row.sender_email || 'a user'}`,
+    html,
   });
-  if (!res.ok) console.error('feedback email failed', res.status, await res.text());
 }
 
 export function registerFeedbackRoutes(app, pool, requireAuth) {
@@ -37,7 +29,7 @@ export function registerFeedbackRoutes(app, pool, requireAuth) {
        values ($1, $2, $3, $4, $5) returning *`,
       [req.userId, message, req.body?.attachmentUrl ?? null, users[0].email, users[0].name]
     );
-    emailDeveloper(rows[0]).catch((err) => console.error('feedback email failed', err));
+    emailDeveloper(rows[0]).catch((err) => console.error('feedback email failed', err.message));
     res.status(201).json({ id: rows[0].id });
   }));
 }

@@ -9,6 +9,13 @@ const STATEMENTS = [
     created_at timestamptz not null default now()
   )`,
   `alter table app_users add column if not exists last_seen_at timestamptz`,
+  `create table if not exists password_resets (
+    token_hash text primary key,
+    user_id uuid not null,
+    created_at timestamptz not null default now(),
+    expires_at timestamptz not null
+  )`,
+  `create index if not exists password_resets_user_idx on password_resets (user_id)`,
   // Supabase-only triggers that call pg_net / edge functions, which do not exist here.
   `drop trigger if exists on_notification_created on notifications`,
   `drop trigger if exists on_feedback_created on developer_feedback`,

@@ -11,6 +11,7 @@ import { registerAccountRoutes } from './account.js';
 import { registerChatRoutes } from './chat.js';
 import { registerUploadRoutes } from './uploads.js';
 import { registerFeedbackRoutes } from './feedback.js';
+import { registerPasswordResetRoutes } from './passwordReset.js';
 import { registerAdminRoutes, trackActivity, isAdminEmail } from './admin.js';
 import { createPushDelivery, registerPushRoutes } from './push.js';
 
@@ -126,6 +127,7 @@ registerAccountRoutes(app, pool, requireAuth);
 registerChatRoutes(app, pool, requireAuth, requireAuthStream);
 registerUploadRoutes(app, pool, requireAuth);
 registerFeedbackRoutes(app, pool, requireAuth);
+registerPasswordResetRoutes(app, pool);
 registerAdminRoutes(app, pool, requireAuth);
 
 app.use((err, _req, res, _next) => {
