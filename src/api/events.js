@@ -1,37 +1,19 @@
 import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 
-export async function listMyEvents() {
-  const { data, error } = await supabase.from('events').select('*').order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+export function listMyEvents() {
+  return serverFetch('/events');
 }
 
-export async function getEvent(eventId) {
-  const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
-  if (error) throw error;
-  return data;
+export function getEvent(eventId) {
+  return serverFetch(`/events/${eventId}`);
 }
 
-export async function createEvent({ title, description, icon, currency, userId, participantName, extraParticipantNames }) {
-  const participants = [
-    { id: crypto.randomUUID(), name: participantName, email: null, user_id: userId },
-    ...(extraParticipantNames ?? []).map((name) => ({ id: crypto.randomUUID(), name, email: null, user_id: null })),
-  ];
-  const { data, error } = await supabase
-    .from('events')
-    .insert({
-      title,
-      description,
-      icon,
-      currency,
-      created_by: userId,
-      manager_user_id: userId,
-      participants,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+export function createEvent({ title, description, icon, currency, participantName, extraParticipantNames }) {
+  return serverFetch('/events', {
+    method: 'POST',
+    body: { title, description, icon, currency, participantName, extraParticipantNames },
+  });
 }
 
 export async function findEventByInviteCode(inviteCode) {
@@ -52,28 +34,14 @@ export async function joinEvent(inviteCode, { name, email }) {
   return data;
 }
 
-export async function updateEvent(eventId, patch) {
-  const { data, error } = await supabase.from('events').update(patch).eq('id', eventId).select().single();
-  if (error) throw error;
-  return data;
+export function updateEvent(eventId, patch) {
+  return serverFetch(`/events/${eventId}`, { method: 'PATCH', body: patch });
 }
 
-export async function transferManager(eventId, currentManagerId, newManagerId) {
-  const { data, error } = await supabase
-    .from('events')
-    .update({
-      manager_user_id: newManagerId,
-      previous_manager_user_id: currentManagerId,
-      manager_changed_at: new Date().toISOString(),
-    })
-    .eq('id', eventId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+export function transferManager(eventId, _currentManagerId, newManagerId) {
+  return serverFetch(`/events/${eventId}/transfer-manager`, { method: 'POST', body: { newManagerId } });
 }
 
-export async function deleteEvent(eventId) {
-  const { error } = await supabase.from('events').delete().eq('id', eventId);
-  if (error) throw error;
+export function deleteEvent(eventId) {
+  return serverFetch(`/events/${eventId}`, { method: 'DELETE' });
 }

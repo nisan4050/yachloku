@@ -1,6 +1,7 @@
 import express from 'express';
 import pg from 'pg';
 import { issueToken, requireAuth, verifyGoogleIdToken, hashPassword, checkPassword } from './auth.js';
+import { registerEventRoutes } from './events.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000 } = process.env;
 
@@ -86,5 +87,7 @@ app.get('/auth/me', requireAuth, async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: 'user not found' });
   res.json({ user: publicUser(rows[0]) });
 });
+
+registerEventRoutes(app, pool, requireAuth);
 
 app.listen(PORT, () => console.log(`yachloku-api listening on ${PORT}`));
