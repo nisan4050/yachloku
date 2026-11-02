@@ -1,4 +1,3 @@
-import { supabase } from '@/api/supabaseClient';
 import { serverFetch } from '@/api/server';
 
 export function listMyEvents() {
@@ -16,22 +15,12 @@ export function createEvent({ title, description, icon, currency, participantNam
   });
 }
 
-export async function findEventByInviteCode(inviteCode) {
-  const { data, error } = await supabase.rpc('find_event_by_invite_code', {
-    p_invite_code: inviteCode,
-  });
-  if (error) throw error;
-  return data;
+export function findEventByInviteCode(inviteCode) {
+  return serverFetch(`/events/by-code/${encodeURIComponent(inviteCode)}`);
 }
 
-export async function joinEvent(inviteCode, { name, email }) {
-  const { data, error } = await supabase.rpc('join_event_by_invite_code', {
-    p_invite_code: inviteCode,
-    p_name: name,
-    p_email: email ?? null,
-  });
-  if (error) throw error;
-  return data;
+export function joinEvent(inviteCode, { name, email }) {
+  return serverFetch('/events/join', { method: 'POST', body: { inviteCode, name, email: email ?? null } });
 }
 
 export function updateEvent(eventId, patch) {

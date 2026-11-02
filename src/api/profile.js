@@ -1,31 +1,18 @@
-import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 
-export async function getProfile(userId) {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) throw error;
-  return data;
+export function getProfile() {
+  return serverFetch('/me/profile');
 }
 
-export async function updateNotificationPrefs(userId, prefs) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ notification_prefs: prefs })
-    .eq('id', userId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+export function updateNotificationPrefs(_userId, prefs) {
+  return serverFetch('/me/profile', { method: 'PATCH', body: { notification_prefs: prefs } });
 }
 
-export async function updatePhone(userId, phone) {
-  const { data, error } = await supabase.from('profiles').update({ phone }).eq('id', userId).select().single();
-  if (error) throw error;
-  return data;
+export function updatePhone(_userId, phone) {
+  return serverFetch('/me/profile', { method: 'PATCH', body: { phone } });
 }
 
 export async function getProfilesByIds(userIds) {
   if (!userIds || userIds.length === 0) return [];
-  const { data, error } = await supabase.from('profiles').select('id, phone').in('id', userIds);
-  if (error) throw error;
-  return data;
+  return serverFetch(`/profiles?ids=${userIds.join(',')}`);
 }

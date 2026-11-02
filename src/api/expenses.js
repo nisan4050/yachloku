@@ -1,31 +1,21 @@
 import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 import { buildStoragePath } from '@/lib/utils';
 
-export async function listExpenses(eventId) {
-  const { data, error } = await supabase
-    .from('expenses')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('date', { ascending: false });
-  if (error) throw error;
-  return data;
+export function listExpenses(eventId) {
+  return serverFetch(`/events/${eventId}/expenses`);
 }
 
-export async function createExpense(expense) {
-  const { data, error } = await supabase.from('expenses').insert(expense).select().single();
-  if (error) throw error;
-  return data;
+export function createExpense(expense) {
+  return serverFetch(`/events/${expense.event_id}/expenses`, { method: 'POST', body: expense });
 }
 
-export async function updateExpense(expenseId, patch) {
-  const { data, error } = await supabase.from('expenses').update(patch).eq('id', expenseId).select().single();
-  if (error) throw error;
-  return data;
+export function updateExpense(expenseId, patch) {
+  return serverFetch(`/expenses/${expenseId}`, { method: 'PATCH', body: patch });
 }
 
-export async function deleteExpense(expenseId) {
-  const { error } = await supabase.from('expenses').delete().eq('id', expenseId);
-  if (error) throw error;
+export function deleteExpense(expenseId) {
+  return serverFetch(`/expenses/${expenseId}`, { method: 'DELETE' });
 }
 
 export async function uploadReceipt(eventId, file) {

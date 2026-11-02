@@ -1,7 +1,5 @@
-import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 
-export async function deleteAccount() {
-  const { data, error } = await supabase.functions.invoke('delete-account');
-  if (error) throw error;
-  return data;
+export function deleteAccount() {
+  return serverFetch('/me', { method: 'DELETE' });
 }

@@ -1,55 +1,29 @@
-import { supabase } from '@/api/supabaseClient';
+import { serverFetch } from '@/api/server';
 
-export async function listPayments(eventId) {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('date', { ascending: false });
-  if (error) throw error;
-  return data;
+export function listPayments(eventId) {
+  return serverFetch(`/events/${eventId}/payments`);
 }
 
-export async function createPayment(payment) {
-  const { data, error } = await supabase.from('payments').insert(payment).select().single();
-  if (error) throw error;
-  return data;
+export function createPayment(payment) {
+  return serverFetch(`/events/${payment.event_id}/payments`, { method: 'POST', body: payment });
 }
 
-export async function listSettlementConfirmations(eventId) {
-  const { data, error } = await supabase.from('settlement_confirmations').select('*').eq('event_id', eventId);
-  if (error) throw error;
-  return data;
+export function listSettlementConfirmations(eventId) {
+  return serverFetch(`/events/${eventId}/confirmations`);
 }
 
-export async function unconfirmSettlement(eventId, fromParticipantId, toParticipantId) {
-  const { error } = await supabase
-    .from('settlement_confirmations')
-    .delete()
-    .match({ event_id: eventId, from_participant_id: fromParticipantId, to_participant_id: toParticipantId });
-  if (error) throw error;
+export function unconfirmSettlement(eventId, fromParticipantId, toParticipantId) {
+  const query = new URLSearchParams({ from: fromParticipantId, to: toParticipantId });
+  return serverFetch(`/events/${eventId}/confirmations?${query}`, { method: 'DELETE' });
 }
 
-export async function deletePayment(paymentId) {
-  const { error } = await supabase.from('payments').delete().eq('id', paymentId);
-  if (error) throw error;
+export function deletePayment(paymentId) {
+  return serverFetch(`/payments/${paymentId}`, { method: 'DELETE' });
 }
 
-export async function confirmSettlement(eventId, fromParticipantId, toParticipantId) {
-  const { data, error } = await supabase
-    .from('settlement_confirmations')
-    .upsert(
-      {
-        event_id: eventId,
-        from_participant_id: fromParticipantId,
-        to_participant_id: toParticipantId,
-        confirmed: true,
-        confirmed_at: new Date().toISOString(),
-      },
-      { onConflict: 'event_id,from_participant_id,to_participant_id' }
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+export function confirmSettlement(eventId, fromParticipantId, toParticipantId) {
+  return serverFetch(`/events/${eventId}/confirmations`, {
+    method: 'PUT',
+    body: { fromParticipantId, toParticipantId },
+  });
 }

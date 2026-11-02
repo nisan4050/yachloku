@@ -37,7 +37,7 @@ export default function JoinEvent() {
       toast.success(lang === 'he' ? 'הצטרפת לאירוע!' : 'Joined the event!');
       navigate(`/events/${event.id}`);
     } catch (err) {
-      if (err.code === 'P0002') {
+      if (err.code === 'P0002' || err.status === 404) {
         toast.error(lang === 'he' ? 'לא נמצא אירוע עם קוד זה' : 'No event found with this code');
       } else {
         toast.error(err.message);

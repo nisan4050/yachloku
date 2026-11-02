@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/api/supabaseClient';
+import { listExpenses } from '@/api/expenses';
+import { listPayments } from '@/api/payments';
 import { getEventBalances } from '@/hooks/useExpenses';
 
 /**
@@ -19,10 +20,7 @@ export function useCrossEventBalance(events, userId) {
           const me = event.participants.find((p) => p.user_id === userId);
           if (!me) return null;
 
-          const [{ data: expenses }, { data: payments }] = await Promise.all([
-            supabase.from('expenses').select('*').eq('event_id', event.id),
-            supabase.from('payments').select('*').eq('event_id', event.id),
-          ]);
+          const [expenses, payments] = await Promise.all([listExpenses(event.id), listPayments(event.id)]);
 
           const { balances, settlements } = getEventBalances(event.participants, expenses ?? [], payments ?? []);
           const participantsById = Object.fromEntries(event.participants.map((p) => [p.id, p]));
