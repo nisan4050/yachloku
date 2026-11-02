@@ -1,8 +1,38 @@
-import { wrap, getMemberEvent, pick } from './lib.js';
+import { wrap, getMemberEvent } from './lib.js';
+import { bad, text, httpUrl, object, isUuid, isPlainObject } from './validate.js';
 import { subscribeToEvent, subscribeUser, emitToEvent } from './realtime.js';
 
 const SOFT_DELETE_SQL = 'deleted_at = now(), content = null, media_url = null, media_meta = null, location = null';
-const MEDIA_FIELDS = ['content', 'reply_to_id', 'media_url', 'media_meta', 'location'];
+
+const MAX_MESSAGE = 5000;
+
+// Validates the user-controlled parts of a new message. Returns values ready for the insert (JSON columns as text).
+async function cleanMessage(pool, table, event, body) {
+  const b = body ?? {};
+  const content = b.content === undefined || b.content === null ? null : text(b.content, 'content', { min: 0, max: MAX_MESSAGE }) || null;
+  const mediaUrl = httpUrl(b.media_url, 'media_url');
+  const mediaMeta = b.media_meta === undefined || b.media_meta === null ? null : object(b.media_meta, 'media_meta', { maxJson: 5000 });
+  let location = null;
+  if (b.location !== undefined && b.location !== null) {
+    location = object(b.location, 'location', { maxJson: 2000 });
+    if (typeof location.lat !== 'number' || typeof location.lng !== 'number' || Math.abs(location.lat) > 90 || Math.abs(location.lng) > 180) {
+      throw bad('location needs a valid lat and lng');
+    }
+  }
+  if (!content && !mediaUrl && !location) throw bad('message is empty');
+  let replyTo = null;
+  if (b.reply_to_id !== undefined && b.reply_to_id !== null) {
+    if (!isUuid(b.reply_to_id)) throw bad('reply_to_id is not valid');
+    const { rows } = await pool.query(`select 1 from ${table} where id = $1 and event_id = $2`, [b.reply_to_id, event.id]);
+    if (!rows[0]) throw bad('the message you are replying to does not exist in this trip');
+    replyTo = b.reply_to_id;
+  }
+  return {
+    content, replyTo, mediaUrl,
+    mediaMeta: mediaMeta && JSON.stringify(mediaMeta),
+    location: location && JSON.stringify(location),
+  };
+}
 
 const meIn = (event, userId) => (event.participants ?? []).find((p) => String(p.user_id) === String(userId));
 
@@ -40,8 +70,7 @@ export function registerChatRoutes(app, pool, requireAuth, requireAuthStream) {
       if (!message) return res.status(404).json({ error: 'message not found' });
       if (String(message.from_user_id) !== String(req.userId)) return res.status(403).json({ error: 'only the author can edit' });
       if (message.deleted_at) return res.status(409).json({ error: 'message was deleted' });
-      const content = typeof req.body?.content === 'string' ? req.body.content : null;
-      if (!content) return res.status(400).json({ error: 'content is required' });
+      const content = text(req.body?.content, 'content', { max: MAX_MESSAGE });
       const { rows } = await pool.query(`update ${table} set content = $2, edited_at = now() where id = $1 returning *`, [message.id, content]);
       emit(rows[0], 'UPDATE');
       res.json(rows[0]);
@@ -108,12 +137,11 @@ export function registerChatRoutes(app, pool, requireAuth, requireAuthStream) {
     if (!event) return res.status(404).json({ error: 'event not found' });
     const me = meIn(event, req.userId);
     if (!me) return res.status(403).json({ error: 'not a participant' });
-    const v = pick(req.body, MEDIA_FIELDS);
-    if (!v.content && !v.media_url && !v.location) return res.status(400).json({ error: 'message is empty' });
+    const v = await cleanMessage(pool, 'group_messages', event, req.body);
     const { rows } = await pool.query(
       `insert into group_messages (event_id, from_participant_id, from_user_id, content, reply_to_id, media_url, media_meta, location)
        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb) returning *`,
-      [event.id, me.id, req.userId, v.content ?? null, v.reply_to_id ?? null, v.media_url ?? null, v.media_meta ?? null, v.location ?? null]
+      [event.id, me.id, req.userId, v.content, v.replyTo, v.mediaUrl, v.mediaMeta, v.location]
     );
     emitGroup(rows[0], 'INSERT');
     res.status(201).json(rows[0]);
@@ -152,12 +180,11 @@ export function registerChatRoutes(app, pool, requireAuth, requireAuthStream) {
     const me = meIn(event, req.userId);
     const target = (event.participants ?? []).find((p) => p.id === req.body?.to_participant_id);
     if (!me || !target) return res.status(400).json({ error: 'unknown recipient' });
-    const v = pick(req.body, MEDIA_FIELDS);
-    if (!v.content && !v.media_url && !v.location) return res.status(400).json({ error: 'message is empty' });
+    const v = await cleanMessage(pool, 'chat_messages', event, req.body);
     const { rows } = await pool.query(
       `insert into chat_messages (event_id, from_participant_id, to_participant_id, from_user_id, to_user_id, content, reply_to_id, media_url, media_meta, location)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb) returning *`,
-      [event.id, me.id, target.id, req.userId, target.user_id ?? null, v.content ?? null, v.reply_to_id ?? null, v.media_url ?? null, v.media_meta ?? null, v.location ?? null]
+      [event.id, me.id, target.id, req.userId, target.user_id ?? null, v.content, v.replyTo, v.mediaUrl, v.mediaMeta, v.location]
     );
     emitPrivate(rows[0], 'INSERT');
     res.status(201).json(rows[0]);
@@ -200,11 +227,12 @@ export function registerChatRoutes(app, pool, requireAuth, requireAuthStream) {
   app.post('/events/:id/settlement-messages/sync', requireAuth, wrap(async (req, res) => {
     const event = await getMemberEvent(pool, req.params.id, req.userId);
     if (!event) return res.status(404).json({ error: 'event not found' });
-    const wanted = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const wanted = Array.isArray(req.body?.messages) ? req.body.messages.filter(isPlainObject).slice(0, 500) : [];
     const byId = new Map((event.participants ?? []).map((p) => [p.id, p]));
     const valid = wanted
       .map((m) => ({ ...m, from: byId.get(m.fromParticipantId), to: byId.get(m.toParticipantId) }))
-      .filter((m) => m.key?.startsWith('settlement:') && m.content && m.from?.user_id && m.to?.user_id);
+      .filter((m) => typeof m.key === 'string' && m.key.startsWith('settlement:') && typeof m.content === 'string' && m.content && m.content.length <= MAX_MESSAGE && m.from?.user_id && m.to?.user_id)
+      .filter((m) => String(m.from.user_id) === String(req.userId) || String(m.to.user_id) === String(req.userId));
 
     const client = await pool.connect();
     const changed = [];
@@ -224,8 +252,9 @@ export function registerChatRoutes(app, pool, requireAuth, requireAuthStream) {
       const keep = valid.map((m) => m.key);
       const { rows: removed } = await client.query(
         `update chat_messages set deleted_at = now(), content = null
-         where event_id = $1 and system_key like 'settlement:%' and deleted_at is null and not (system_key = any($2::text[])) returning *`,
-        [event.id, keep]
+         where event_id = $1 and system_key like 'settlement:%' and deleted_at is null and not (system_key = any($2::text[]))
+           and (from_user_id::text = $3::text or to_user_id::text = $3::text) returning *`,
+        [event.id, keep, req.userId]
       );
       removed.forEach((row) => changed.push({ row, eventType: 'UPDATE' }));
       await client.query('commit');

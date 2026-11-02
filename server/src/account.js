@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { wrap, memberClause } from './lib.js';
 import { removeEventFiles } from './uploads.js';
+import { forgetUser } from './auth.js';
 
 // Replaces the Supabase `delete-account` edge function. Without FKs to the user table,
 // the former ON DELETE SET NULL / CASCADE behaviour is applied explicitly here.
@@ -54,6 +55,7 @@ export function registerAccountRoutes(app, pool, requireAuth) {
       await client.query('delete from app_users where id = $1', [userId]);
 
       await client.query('commit');
+      forgetUser(userId);
       for (const id of deletedEventIds) await removeEventFiles(id);
       if (process.env.UPLOAD_DIR) {
         for (const bucket of ['feedback', 'avatars']) {

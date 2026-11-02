@@ -1,12 +1,17 @@
 import crypto from 'node:crypto';
 import { wrap } from './lib.js';
 import { sendEmail, escapeHtml } from './mail.js';
-import { hashPassword, issueToken } from './auth.js';
+import { hashPassword, issueToken, forgetUser } from './auth.js';
+import { createLimiter } from './rateLimit.js';
 import { isAdminEmail } from './admin.js';
 
 const { APP_URL = 'https://www.yachloku.com' } = process.env;
 const TOKEN_TTL_MINUTES = 60;
 const MAX_REQUESTS_PER_HOUR = 3;
+
+const forgotLimit = createLimiter({ windowMs: 60 * 60 * 1000, max: 20 });
+const resetLimit = createLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+const MAX_PASSWORD = 200;
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -25,9 +30,11 @@ function resetEmail(name, link) {
 export function registerPasswordResetRoutes(app, pool) {
   // Always answers the same way, so it cannot be used to discover which emails are registered.
   app.post('/auth/forgot', wrap(async (req, res) => {
-    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    const raw = req.body?.email;
+    const email = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
     res.json({ ok: true });
-    if (!email) return;
+    if (!email || email.length > 254 || forgotLimit.isBlocked(req.ip)) return;
+    forgotLimit.record(req.ip);
 
     try {
       const { rows } = await pool.query('select id, email, name from app_users where email = $1', [email]);
@@ -55,9 +62,10 @@ export function registerPasswordResetRoutes(app, pool) {
   }));
 
   app.post('/auth/reset', wrap(async (req, res) => {
+    resetLimit.consume(req.ip);
     const { token, password } = req.body ?? {};
-    if (typeof token !== 'string' || !token || typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ error: 'a valid token and a password of 6+ characters are required' });
+    if (typeof token !== 'string' || !token || token.length > 200 || typeof password !== 'string' || password.length < 6 || password.length > MAX_PASSWORD) {
+      return res.status(400).json({ error: 'a valid token and a password of 6-200 characters are required' });
     }
     const client = await pool.connect();
     try {
@@ -71,11 +79,12 @@ export function registerPasswordResetRoutes(app, pool) {
         return res.status(400).json({ error: 'this link is invalid or has expired' });
       }
       const { rows: users } = await client.query(
-        'update app_users set password_hash = $2 where id = $1 returning id, email, name',
+        'update app_users set password_hash = $2, password_changed_at = now() where id = $1 returning id, email, name',
         [rows[0].user_id, await hashPassword(password)]
       );
       await client.query('delete from password_resets where user_id = $1', [rows[0].user_id]);
       await client.query('commit');
+      forgetUser(users[0].id);
       res.json({ token: issueToken(users[0]), user: { id: users[0].id, email: users[0].email, name: users[0].name, isAdmin: isAdminEmail(users[0].email) } });
     } catch (err) {
       await client.query('rollback');

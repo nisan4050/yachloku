@@ -1,10 +1,48 @@
 import { wrap, getMemberEvent, pick, insertSql, updateSql } from './lib.js';
+import { bad, text, money, currency, dateString, oneOf, array, isPlainObject, httpUrl } from './validate.js';
 
 const EXPENSE_FIELDS = [
   'description', 'amount', 'currency', 'category', 'paid_by', 'split_type',
   'split_between', 'date', 'receipt_url', 'notes',
 ];
 const PAYMENT_FIELDS = ['from_participant_id', 'to_participant_id', 'amount', 'currency', 'date', 'notes'];
+const CATEGORIES = ['food', 'accommodation', 'transport', 'shopping', 'entertainment', 'drinks', 'groceries', 'other'];
+const SPLIT_TYPES = ['equal', 'custom', 'percentage'];
+
+const participantIds = (event) => new Set((event.participants ?? []).map((p) => p.id));
+
+// Validates the fields present in `body`; with `requireAll`, the fields a new expense cannot do without must be there.
+function cleanExpense(body, event, { requireAll }) {
+  const ids = participantIds(event);
+  const raw = {};
+  for (const k of EXPENSE_FIELDS) if (body && body[k] !== undefined) raw[k] = body[k];
+  if (requireAll) for (const k of ['description', 'amount', 'paid_by', 'split_between']) if (raw[k] === undefined) throw bad(`${k} is required`);
+
+  const out = {};
+  if ('description' in raw) out.description = text(raw.description, 'description', { max: 200 });
+  if ('amount' in raw) out.amount = money(raw.amount, 'amount');
+  if ('currency' in raw) out.currency = currency(raw.currency);
+  if ('category' in raw) out.category = oneOf(raw.category, CATEGORIES, 'category');
+  if ('split_type' in raw) out.split_type = oneOf(raw.split_type, SPLIT_TYPES, 'split_type');
+  if ('date' in raw) out.date = dateString(raw.date);
+  if ('notes' in raw) out.notes = text(raw.notes, 'notes', { min: 0, max: 2000, optional: true }) || null;
+  if ('receipt_url' in raw) out.receipt_url = httpUrl(raw.receipt_url, 'receipt_url');
+  if ('paid_by' in raw) {
+    out.paid_by = array(raw.paid_by, 'paid_by', { min: 1, max: 100 }).map((p) => {
+      if (!isPlainObject(p) || !ids.has(p.participant_id)) throw bad('paid_by must refer to people in this trip');
+      return { participant_id: p.participant_id, amount: money(p.amount, 'paid_by amount', { allowZero: true }) };
+    });
+  }
+  if ('split_between' in raw) {
+    out.split_between = array(raw.split_between, 'split_between', { min: 1, max: 100 }).map((p) => {
+      if (!isPlainObject(p) || !ids.has(p.participant_id)) throw bad('split_between must refer to people in this trip');
+      const entry = { participant_id: p.participant_id, amount: money(p.amount ?? 0, 'split amount', { allowZero: true }) };
+      entry.percentage = p.percentage === undefined || p.percentage === null ? null : money(p.percentage, 'percentage', { allowZero: true });
+      return entry;
+    });
+  }
+  return out;
+}
 
 export function registerExpenseRoutes(app, pool, requireAuth) {
   const memberOrFail = async (req, res, eventId) => {
@@ -29,8 +67,9 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
   }));
 
   app.post('/events/:id/expenses', requireAuth, wrap(async (req, res) => {
-    if (!(await memberOrFail(req, res, req.params.id))) return;
-    const values = { ...pick(req.body, EXPENSE_FIELDS), event_id: req.params.id, created_by: req.userId };
+    const event = await memberOrFail(req, res, req.params.id);
+    if (!event) return;
+    const values = { ...pick(cleanExpense(req.body, event, { requireAll: true }), EXPENSE_FIELDS), event_id: event.id, created_by: req.userId };
     const { sql, args } = insertSql('expenses', values);
     const { rows } = await pool.query(sql, args);
     res.status(201).json(rows[0]);
@@ -38,8 +77,9 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
 
   app.patch('/expenses/:id', requireAuth, wrap(async (req, res) => {
     const eventId = await eventIdOf('expenses', req.params.id);
-    if (!eventId || !(await getMemberEvent(pool, eventId, req.userId))) return res.status(404).json({ error: 'expense not found' });
-    const values = pick(req.body, EXPENSE_FIELDS);
+    const event = eventId && (await getMemberEvent(pool, eventId, req.userId));
+    if (!event) return res.status(404).json({ error: 'expense not found' });
+    const values = pick(cleanExpense(req.body, event, { requireAll: false }), EXPENSE_FIELDS);
     if (Object.keys(values).length === 0) return res.status(400).json({ error: 'nothing to update' });
     const { sql, args } = updateSql('expenses', values, 'id', req.params.id);
     const { rows } = await pool.query(sql, args);
@@ -61,8 +101,21 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
   }));
 
   app.post('/events/:id/payments', requireAuth, wrap(async (req, res) => {
-    if (!(await memberOrFail(req, res, req.params.id))) return;
-    const values = { ...pick(req.body, PAYMENT_FIELDS), event_id: req.params.id, created_by: req.userId };
+    const event = await memberOrFail(req, res, req.params.id);
+    if (!event) return;
+    const body = req.body ?? {};
+    const ids = participantIds(event);
+    if (!ids.has(body.from_participant_id) || !ids.has(body.to_participant_id)) throw bad('payments must be between people in this trip');
+    if (body.from_participant_id === body.to_participant_id) throw bad('a payment must be between two different people');
+    const clean = {
+      from_participant_id: body.from_participant_id,
+      to_participant_id: body.to_participant_id,
+      amount: money(body.amount, 'amount'),
+    };
+    if (body.currency !== undefined) clean.currency = currency(body.currency);
+    if (body.date !== undefined) clean.date = dateString(body.date);
+    if (body.notes !== undefined) clean.notes = text(body.notes, 'notes', { min: 0, max: 2000, optional: true }) || null;
+    const values = { ...pick(clean, PAYMENT_FIELDS), event_id: event.id, created_by: req.userId };
     const { sql, args } = insertSql('payments', values);
     const { rows } = await pool.query(sql, args);
     res.status(201).json(rows[0]);
@@ -91,6 +144,8 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
     if (!event) return;
     const { fromParticipantId, toParticipantId } = req.body ?? {};
     if (!fromParticipantId || !toParticipantId) return res.status(400).json({ error: 'fromParticipantId and toParticipantId are required' });
+    const ids = participantIds(event);
+    if (!ids.has(fromParticipantId) || !ids.has(toParticipantId)) return res.status(400).json({ error: 'unknown participant' });
     if (!isDebtorOrManager(event, req.userId, fromParticipantId)) return res.status(403).json({ error: 'only the payer or the manager can confirm' });
     const { rows } = await pool.query(
       `insert into settlement_confirmations (event_id, from_participant_id, to_participant_id, confirmed, confirmed_at)
@@ -106,8 +161,8 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
     const event = await memberOrFail(req, res, req.params.id);
     if (!event) return;
     const { from, to } = req.query;
-    if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
-    if (!isDebtorOrManager(event, req.userId, String(from))) return res.status(403).json({ error: 'only the payer or the manager can undo' });
+    if (typeof from !== 'string' || typeof to !== 'string' || !from || !to) return res.status(400).json({ error: 'from and to are required' });
+    if (!isDebtorOrManager(event, req.userId, from)) return res.status(403).json({ error: 'only the payer or the manager can undo' });
     await pool.query(
       'delete from settlement_confirmations where event_id = $1 and from_participant_id = $2 and to_participant_id = $3',
       [event.id, from, to]

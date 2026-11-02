@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { JWT } from 'google-auth-library';
 import { wrap } from './lib.js';
+import { text, httpUrl, bad } from './validate.js';
 
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT = 'mailto:nisan4050@gmail.com', FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY } = process.env;
 
@@ -74,8 +75,11 @@ export function createPushDelivery(pool) {
               },
             }),
           });
-          if (res.status === 404 || res.status === 400) await pool.query('delete from fcm_tokens where id = $1', [row.id]);
-          else if (!res.ok) console.error('fcm failed', res.status);
+          if (res.ok) return;
+          // Only drop a token Firebase says is dead; a 400 can also mean our payload was wrong.
+          const detail = await res.text().catch(() => '');
+          if (res.status === 404 || /UNREGISTERED|registration token/i.test(detail)) await pool.query('delete from fcm_tokens where id = $1', [row.id]);
+          else console.error('fcm failed', res.status, detail.slice(0, 200));
         })
       );
     }
@@ -84,8 +88,12 @@ export function createPushDelivery(pool) {
 
 export function registerPushRoutes(app, pool, requireAuth) {
   app.post('/push/web', requireAuth, wrap(async (req, res) => {
-    const { endpoint, p256dh, auth } = req.body ?? {};
-    if (!endpoint || !p256dh || !auth) return res.status(400).json({ error: 'endpoint, p256dh and auth are required' });
+    const input = req.body ?? {};
+    if (!input.endpoint || !input.p256dh || !input.auth) return res.status(400).json({ error: 'endpoint, p256dh and auth are required' });
+    const endpoint = httpUrl(input.endpoint, 'endpoint', { optional: false });
+    if (!endpoint.startsWith('https://')) throw bad('endpoint must be https');
+    const p256dh = text(input.p256dh, 'p256dh', { max: 300 });
+    const auth = text(input.auth, 'auth', { max: 300 });
     await pool.query(
       `insert into push_subscriptions (user_id, endpoint, p256dh, auth) values ($1, $2, $3, $4)
        on conflict (user_id, endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth`,
@@ -100,8 +108,8 @@ export function registerPushRoutes(app, pool, requireAuth) {
   }));
 
   app.post('/push/fcm', requireAuth, wrap(async (req, res) => {
-    const { token } = req.body ?? {};
-    if (!token) return res.status(400).json({ error: 'token is required' });
+    if (!req.body?.token) return res.status(400).json({ error: 'token is required' });
+    const token = text(req.body.token, 'token', { max: 4096 });
     await pool.query('insert into fcm_tokens (user_id, token) values ($1, $2) on conflict (user_id, token) do nothing', [req.userId, token]);
     res.status(204).end();
   }));

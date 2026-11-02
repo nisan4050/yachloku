@@ -1,4 +1,5 @@
 import { wrap } from './lib.js';
+import { text, httpUrl } from './validate.js';
 import { sendEmail, escapeHtml, mailEnabled } from './mail.js';
 
 const { FEEDBACK_TO = 'nisan4050@gmail.com', APP_URL = 'https://www.yachloku.com' } = process.env;
@@ -61,14 +62,14 @@ async function emailDeveloper(row) {
 
 export function registerFeedbackRoutes(app, pool, requireAuth) {
   app.post('/feedback', requireAuth, wrap(async (req, res) => {
-    const message = String(req.body?.message ?? '').trim();
-    if (message.length < 1 || message.length > 4000) return res.status(400).json({ error: 'message must be 1-4000 characters' });
+    const message = text(req.body?.message, 'message', { max: 4000 });
+    const attachmentUrl = httpUrl(req.body?.attachmentUrl, 'attachmentUrl');
     const { rows: users } = await pool.query('select email, name from app_users where id = $1', [req.userId]);
     if (!users[0]) return res.status(404).json({ error: 'user not found' });
     const { rows } = await pool.query(
       `insert into developer_feedback (user_id, message, attachment_url, sender_email, sender_name)
        values ($1, $2, $3, $4, $5) returning *`,
-      [req.userId, message, req.body?.attachmentUrl ?? null, users[0].email, users[0].name]
+      [req.userId, message, attachmentUrl, users[0].email, users[0].name]
     );
     emailDeveloper(rows[0]).catch((err) => console.error('feedback email failed', err.message));
     res.status(201).json({ id: rows[0].id });

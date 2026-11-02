@@ -1,4 +1,5 @@
 import { wrap, getMemberEvent, jsonVal } from './lib.js';
+import { bad, text, array, object, isPlainObject } from './validate.js';
 import { emitToUser } from './realtime.js';
 
 const PREF_KEY_BY_TYPE = { chat: 'chat', poll: 'chat', expense: 'expenses', settlement: 'balance_changes' };
@@ -15,8 +16,12 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
     const { notification_prefs, phone } = req.body ?? {};
     const sets = [];
     const args = [];
-    if (notification_prefs !== undefined) { args.push(jsonVal(notification_prefs)); sets.push(`notification_prefs = $${args.length}::jsonb`); }
-    if (phone !== undefined) { args.push(phone); sets.push(`phone = $${args.length}`); }
+    if (notification_prefs !== undefined) {
+      object(notification_prefs, 'notification_prefs', { maxJson: 1000 });
+      if (!Object.values(notification_prefs).every((v) => typeof v === 'boolean')) throw bad('notification_prefs values must be true or false');
+      args.push(jsonVal(notification_prefs)); sets.push(`notification_prefs = $${args.length}::jsonb`);
+    }
+    if (phone !== undefined) { args.push(text(phone, 'phone', { min: 0, max: 30, optional: true }) || null); sets.push(`phone = $${args.length}`); }
     if (sets.length === 0) return res.status(400).json({ error: 'nothing to update' });
     args.push(req.userId);
     const { rows } = await pool.query(`update profiles set ${sets.join(', ')}, updated_at = now() where id = $${args.length} returning *`, args);
@@ -25,7 +30,7 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
 
   // Only phone numbers of people the caller shares a trip with.
   app.get('/profiles', requireAuth, wrap(async (req, res) => {
-    const ids = String(req.query.ids ?? '').split(',').filter(Boolean);
+    const ids = String(req.query.ids ?? '').split(',').filter(Boolean).slice(0, 200);
     if (ids.length === 0) return res.json([]);
     const { rows } = await pool.query(
       `select p.id, p.phone from profiles p
@@ -64,8 +69,12 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
   app.post('/events/:id/notify', requireAuth, wrap(async (req, res) => {
     const event = await getMemberEvent(pool, req.params.id, req.userId);
     if (!event) return res.status(404).json({ error: 'event not found' });
-    const { type, title, body, data, onlyUserIds } = req.body ?? {};
-    if (!type || !title) return res.status(400).json({ error: 'type and title are required' });
+    const input = req.body ?? {};
+    const type = text(input.type, 'type', { max: 50 });
+    const title = text(input.title, 'title', { max: 200 });
+    const body = text(input.body, 'body', { max: 1000, optional: true });
+    const data = input.data === undefined || input.data === null ? {} : object(input.data, 'data', { maxJson: 4000 });
+    const onlyUserIds = input.onlyUserIds === undefined ? undefined : array(input.onlyUserIds, 'onlyUserIds', { max: 200 });
 
     let recipients = (event.participants ?? [])
       .map((p) => p.user_id)
@@ -84,7 +93,7 @@ export function registerProfileRoutes(app, pool, requireAuth, deliverPush = asyn
     const { rows } = await pool.query(
       `insert into notifications (user_id, event_id, type, title, body, data)
        select u, $2, $3, $4, $5, $6::jsonb from unnest($1::uuid[]) as u returning *`,
-      [recipients, event.id, type, title, body ?? null, JSON.stringify(data ?? {})]
+      [recipients, event.id, type, title, body, JSON.stringify(data)]
     );
     rows.forEach((n) => emitToUser(n.user_id, 'notification', { eventType: 'INSERT', row: n }));
     await Promise.allSettled(rows.map((n) => deliverPush(n)));

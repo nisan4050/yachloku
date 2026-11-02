@@ -1,4 +1,5 @@
 import { wrap, getMemberEvent } from './lib.js';
+import { bad, text, array, isPlainObject } from './validate.js';
 
 export function registerPollRoutes(app, pool, requireAuth) {
   const loadPoll = async (pollId) => {
@@ -28,11 +29,9 @@ export function registerPollRoutes(app, pool, requireAuth) {
 
   app.post('/events/:id/polls', requireAuth, wrap(async (req, res) => {
     if (!(await getMemberEvent(pool, req.params.id, req.userId))) return res.status(404).json({ error: 'event not found' });
-    const { question, options } = req.body ?? {};
-    if (!question || !Array.isArray(options) || options.length < 2) {
-      return res.status(400).json({ error: 'question and at least 2 options are required' });
-    }
-    const withIds = options.map((label) => ({ id: crypto.randomUUID(), label }));
+    const question = text(req.body?.question, 'question', { max: 200 });
+    const labels = array(req.body?.options, 'options', { min: 2, max: 20 }).map((label) => text(label, 'option', { max: 100 }));
+    const withIds = labels.map((label) => ({ id: crypto.randomUUID(), label }));
     const { rows } = await pool.query(
       'insert into polls (event_id, question, options, created_by) values ($1, $2, $3::jsonb, $4) returning *',
       [req.params.id, question, JSON.stringify(withIds), req.userId]
@@ -60,10 +59,15 @@ export function registerPollRoutes(app, pool, requireAuth) {
     const allowed = await canManagePoll(poll, req.userId);
     if (allowed === null) return res.status(404).json({ error: 'poll not found' });
     if (allowed === false) return res.status(403).json({ error: 'only the poll creator or the manager can edit' });
-    const { question, options } = req.body ?? {};
-    if (!question || !Array.isArray(options) || options.length < 2) {
-      return res.status(400).json({ error: 'question and at least 2 options are required' });
-    }
+    const question = text(req.body?.question, 'question', { max: 200 });
+    const seenIds = new Set();
+    const options = array(req.body?.options, 'options', { min: 2, max: 20 }).map((o) => {
+      if (!isPlainObject(o)) throw bad('each option needs an id and a label');
+      const id = text(o.id, 'option id', { max: 64 });
+      if (seenIds.has(id)) throw bad('option ids must be unique');
+      seenIds.add(id);
+      return { id, label: text(o.label, 'option', { max: 100 }) };
+    });
     const client = await pool.connect();
     try {
       await client.query('begin');

@@ -9,6 +9,7 @@ const STATEMENTS = [
     created_at timestamptz not null default now()
   )`,
   `alter table app_users add column if not exists last_seen_at timestamptz`,
+  `alter table app_users add column if not exists password_changed_at timestamptz`,
   `create table if not exists password_resets (
     token_hash text primary key,
     user_id uuid not null,
