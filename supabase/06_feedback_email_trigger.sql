@@ -15,7 +15,7 @@ begin
     url := 'https://vzgbfgcefshqmkzhqndx.supabase.co/functions/v1/send-feedback-email',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', 'd14EVqCXn2xzukhVoazpOowrfzme3JvR'
+      'x-webhook-secret', '<WEBHOOK_SECRET - set at deploy time, never commit>'
     ),
     body := jsonb_build_object('feedback_id', new.id)
   );
