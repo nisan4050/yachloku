@@ -155,7 +155,7 @@ try {
   check('settlement sync is idempotent', s1b.data.changed === 0);
   const s2 = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: msg('You owe 55') });
   check('settlement message updated in place', s2.data.changed === 1);
-  const thread = (await call(`/events/${eid}/private-messages?with=${partB.id}`, { token: tb })).data.filter((m) => m.is_system && !m.deleted_at);
+  const thread = (await call(`/events/${eid}/private-messages?with=${partA.id}`, { token: tb })).data.filter((m) => m.is_system && !m.deleted_at);
   check('exactly one live system message', thread.length === 1 && thread[0].content === 'You owe 55');
   const s3 = await call(`/events/${eid}/settlement-messages/sync`, { method: 'POST', token: ta, body: { messages: [] } });
   check('settled debts remove the message', s3.data.changed === 1);
