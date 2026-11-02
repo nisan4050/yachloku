@@ -36,7 +36,7 @@ app.use((req, res, next) => (req.path.startsWith('/uploads') ? next() : jsonPars
 const allowedOrigins = CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.length === 0 || allowedOrigins.includes(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin))) {
+  if (origin && (allowedOrigins.length === 0 || allowedOrigins.includes(origin) || /^(https?|capacitor):\/\/localhost(:\d+)?$/.test(origin))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

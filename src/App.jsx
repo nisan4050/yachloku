@@ -15,6 +15,7 @@ import Settings from '@/pages/Settings';
 import Admin from '@/pages/Admin';
 import Privacy from '@/pages/Privacy';
 import Terms from '@/pages/Terms';
+import Download from '@/pages/Download';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 function ProtectedRoute({ children }) {
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/download" element={<Download />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
