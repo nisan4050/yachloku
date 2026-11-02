@@ -10,6 +10,7 @@ import CreateEvent from '@/pages/CreateEvent';
 import JoinEvent from '@/pages/JoinEvent';
 import EventDetail from '@/pages/EventDetail';
 import Settings from '@/pages/Settings';
+import Admin from '@/pages/Admin';
 import Privacy from '@/pages/Privacy';
 import Terms from '@/pages/Terms';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
@@ -70,6 +71,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <EventDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           }
         />

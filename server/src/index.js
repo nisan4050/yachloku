@@ -11,6 +11,7 @@ import { registerAccountRoutes } from './account.js';
 import { registerChatRoutes } from './chat.js';
 import { registerUploadRoutes } from './uploads.js';
 import { registerFeedbackRoutes } from './feedback.js';
+import { registerAdminRoutes, trackActivity, isAdminEmail } from './admin.js';
 import { createPushDelivery, registerPushRoutes } from './push.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000, CORS_ORIGINS = '' } = process.env;
@@ -44,7 +45,9 @@ app.use((req, res, next) => {
   next();
 });
 
-const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name });
+app.use(trackActivity(pool));
+
+const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, isAdmin: isAdminEmail(u.email) });
 
 const ensureProfile = (user) =>
   pool.query(
@@ -123,6 +126,7 @@ registerAccountRoutes(app, pool, requireAuth);
 registerChatRoutes(app, pool, requireAuth, requireAuthStream);
 registerUploadRoutes(app, pool, requireAuth);
 registerFeedbackRoutes(app, pool, requireAuth);
+registerAdminRoutes(app, pool, requireAuth);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

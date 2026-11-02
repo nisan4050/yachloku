@@ -8,6 +8,7 @@ const STATEMENTS = [
     google_sub text unique,
     created_at timestamptz not null default now()
   )`,
+  `alter table app_users add column if not exists last_seen_at timestamptz`,
   // Supabase-only triggers that call pg_net / edge functions, which do not exist here.
   `drop trigger if exists on_notification_created on notifications`,
   `drop trigger if exists on_feedback_created on developer_feedback`,

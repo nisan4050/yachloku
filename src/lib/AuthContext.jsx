@@ -35,6 +35,7 @@ const toAppUser = (u) => ({
   id: u.id,
   email: u.email,
   user_metadata: { full_name: u.name },
+  isAdmin: Boolean(u.isAdmin),
 });
 
 export function AuthProvider({ children }) {

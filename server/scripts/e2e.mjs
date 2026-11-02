@@ -22,6 +22,8 @@ const ta = a.data.token, tb = b.data.token;
 const idA = a.data.user.id, idB = b.data.user.id;
 
 try {
+  const meA = await call('/auth/me', { token: ta });
+  check('regular users are not admins', meA.data.user.isAdmin === false && (await call('/admin/overview', { token: ta })).status === 403 && (await call('/admin/feedback', { token: ta })).status === 403);
   const login = await call('/auth/login', { method: 'POST', body: { email: `qa-a-${rnd}@yachloku-qa.invalid`, password: pw } });
   check('login', login.status === 200 && !!login.data.token);
 

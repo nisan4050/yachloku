@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Paperclip, Send, Loader2, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Paperclip, Send, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLang } from '@/hooks/useLang';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,7 +27,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 
-const DEVELOPER_EMAIL = 'nisan4050@gmail.com';
 const DELETE_CONFIRM_WORD = { he: 'מחק', en: 'DELETE' };
 
 const FONT_SCALE_LABEL = {
@@ -234,15 +234,18 @@ export default function Settings() {
                 {lang === 'he' ? 'שליחה' : 'Send'}
               </Button>
             </div>
-            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {lang === 'he'
-                ? `ההערה נשלחת ישירות למפתח (${DEVELOPER_EMAIL}) עם הפרטים המלאים שלכם — לא נפתח אצלכם שום חלון מייל.`
-                : `Your feedback goes straight to the developer (${DEVELOPER_EMAIL}) with your full details — no email window opens on your end.`}
-            </p>
           </form>
         </CardContent>
       </Card>
+
+      {user?.isAdmin && (
+        <Button asChild variant="outline">
+          <Link to="/admin">
+            <ShieldCheck className="h-4 w-4" />
+            {lang === 'he' ? 'ניהול' : 'Admin'}
+          </Link>
+        </Button>
+      )}
 
       <Button variant="outline" onClick={() => signOut()}>
         {t('logout')}

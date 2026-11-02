@@ -46,3 +46,12 @@ export function requireAuthStream(req, res, next) {
     res.status(401).json({ error: 'invalid token' });
   }
 }
+
+// Returns the user id for a valid token, or null (no throwing, for best-effort callers).
+export function verifyToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET).sub;
+  } catch {
+    return null;
+  }
+}
