@@ -13,7 +13,7 @@ import { registerUploadRoutes } from './uploads.js';
 import { registerFeedbackRoutes } from './feedback.js';
 import { registerPasswordResetRoutes } from './passwordReset.js';
 import { registerAdminRoutes, trackActivity, isAdminEmail } from './admin.js';
-import { createPushDelivery, registerPushRoutes } from './push.js';
+import { createPushDelivery, registerPushRoutes, pushStatus } from './push.js';
 
 const { DATABASE_URL, JWT_SECRET, PORT = 3000, CORS_ORIGINS = '' } = process.env;
 
@@ -59,7 +59,7 @@ const ensureProfile = (user) =>
 app.get('/health', async (_req, res) => {
   try {
     const { rows } = await pool.query('select 1 as ok');
-    res.json({ status: 'ok', db: rows[0].ok === 1 });
+    res.json({ status: 'ok', db: rows[0].ok === 1, push: pushStatus() });
   } catch (err) {
     res.status(503).json({ status: 'error', message: err.message });
   }

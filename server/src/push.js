@@ -12,6 +12,20 @@ const fcmAuth = fcmEnabled
   ? new JWT({ email: FCM_CLIENT_EMAIL, key: FCM_PRIVATE_KEY.replace(/\\n/g, '\n'), scopes: ['https://www.googleapis.com/auth/firebase.messaging'] })
   : null;
 
+// 'off' = not configured, 'checking' = startup check running, 'ok' = Firebase accepted the key, 'error' = key rejected.
+let fcmStatus = fcmEnabled ? 'checking' : 'off';
+if (fcmEnabled) {
+  fcmAuth
+    .getAccessToken()
+    .then(() => { fcmStatus = 'ok'; })
+    .catch((err) => {
+      fcmStatus = 'error';
+      console.error('FCM credentials rejected:', err.message);
+    });
+}
+
+export const pushStatus = () => ({ web: webPushEnabled, fcm: fcmStatus });
+
 function notificationUrl(n) {
   if (!n.event_id) return '/home';
   const params = new URLSearchParams();
