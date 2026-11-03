@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { Copy } from 'lucide-react';
+import { toast } from 'sonner';
+import { useLang } from '@/hooks/useLang';
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE = 10;
-const HIDE_AFTER_MS = 4000;
+const HIDE_AFTER_MS = 6000;
 
 function isTruncated(el) {
   if (!(el instanceof HTMLElement) || !el.clientWidth) return false;
@@ -40,6 +43,7 @@ function findTruncated(target) {
  * shows its full text in a small bubble.
  */
 export function LongPressReveal() {
+  const { lang } = useLang();
   const [bubble, setBubble] = useState(null);
   const state = useRef({ timer: null, x: 0, y: 0, suppressClickUntil: 0 });
 
@@ -52,6 +56,7 @@ export function LongPressReveal() {
 
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
+      if (e.target instanceof Element && e.target.closest('[data-long-press-bubble]')) return;
       setBubble(null);
       cancel();
       s.x = e.clientX;
@@ -121,6 +126,23 @@ export function LongPressReveal() {
   if (!bubble) return null;
 
   const { rect, text } = bubble;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    toast.success(lang === 'he' ? 'הטקסט הועתק' : 'Text copied');
+    setBubble(null);
+  };
   const above = rect.top > 80;
   const style = {
     position: 'fixed',
@@ -135,8 +157,19 @@ export function LongPressReveal() {
 
   return (
     <div style={style} role="tooltip" aria-live="polite">
-      <div className="max-w-full break-words rounded-xl bg-foreground px-3 py-2 text-sm text-background shadow-lg">
-        {text}
+      <div
+        data-long-press-bubble
+        className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl bg-foreground py-1.5 pe-1.5 ps-3 text-sm text-background shadow-lg"
+      >
+        <span className="min-w-0 select-text break-words">{text}</span>
+        <button
+          type="button"
+          onClick={copy}
+          className="flex shrink-0 items-center gap-1 rounded-lg bg-background/15 px-2 py-1.5 text-xs font-medium hover:bg-background/25"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {lang === 'he' ? 'העתקה' : 'Copy'}
+        </button>
       </div>
     </div>
   );
