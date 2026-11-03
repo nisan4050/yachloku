@@ -13,17 +13,17 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      <div className="flex gap-2 sm:gap-3">
-        <Button asChild className="flex-1 sm:flex-none">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+        <Button asChild className="min-w-0 px-3 sm:px-5">
           <Link to="/events/new">
-            <Plus className="h-4 w-4" />
-            {t('action_create_event')}
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('action_create_event')}</span>
           </Link>
         </Button>
-        <Button variant="outline" asChild className="flex-1 sm:flex-none">
+        <Button variant="outline" asChild className="min-w-0 px-3 sm:px-5">
           <Link to="/events/join">
-            <KeyRound className="h-4 w-4" />
-            {t('action_join_event')}
+            <KeyRound className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t('action_join_event')}</span>
           </Link>
         </Button>
       </div>
@@ -46,8 +46,8 @@ export default function Home() {
           action={
             <Button asChild>
               <Link to="/events/new">
-                <Plus className="h-4 w-4" />
-                {t('action_create_event')}
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t('action_create_event')}</span>
               </Link>
             </Button>
           }
