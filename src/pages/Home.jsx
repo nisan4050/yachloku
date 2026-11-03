@@ -13,10 +13,6 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('nav_home')}</h1>
-      </div>
-
       <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
         <Button variant="outline" asChild className="w-full sm:w-auto">
           <Link to="/events/join">

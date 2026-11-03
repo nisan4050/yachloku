@@ -22,24 +22,24 @@ export function CrossEventSummary({ events }) {
 
   return (
     <Card className="border-primary/20 bg-primary/5">
-      <CardContent className="flex flex-col gap-3 p-5">
+      <CardContent className="flex flex-col gap-3 p-4">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center justify-between gap-2 text-start"
         >
-          <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-semibold text-muted-foreground">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xs font-semibold text-muted-foreground">
               {lang === 'he' ? 'המצב שלך בכל הטיולים הפעילים' : 'Your standing across active trips'}
             </h2>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {owedToMeEntries.map(([currency, total]) => (
-                <div key={`to-${currency}`} className="text-lg font-bold text-primary">
+                <div key={`to-${currency}`} className="text-sm font-semibold text-primary">
                   {lang === 'he' ? 'מגיע לך סה״כ' : 'You are owed'} {formatCurrency(total, currency)}
                 </div>
               ))}
               {owedByMeEntries.map(([currency, total]) => (
-                <div key={`by-${currency}`} className="text-lg font-bold text-destructive">
+                <div key={`by-${currency}`} className="text-sm font-semibold text-destructive">
                   {lang === 'he' ? 'אתה חייב סה״כ' : 'You owe'} {formatCurrency(total, currency)}
                 </div>
               ))}
