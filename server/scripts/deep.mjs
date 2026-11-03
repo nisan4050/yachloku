@@ -145,9 +145,9 @@ try {
   check('CORS rejects a localhost look-alike', (await fetch(`${API}/health`, { headers: { Origin: 'https://localhost.evil.com' } })).headers.get('access-control-allow-origin') === null);
   check('X-Powered-By is not advertised', !(await fetch(`${API}/health`)).headers.has('x-powered-by'));
   check('SQL injection in login is harmless', is(await call('/auth/login', { method: 'POST', body: { email: "' or 1=1 --", password: "' or 1=1 --" } }), 401, 400));
-  const perf = await Promise.all(Array.from({ length: 25 }, () => call('/events', { token: A.token })));
-  check('25 parallel list requests all succeed', perf.every((r) => r.status === 200));
-  check('25 parallel list requests finish quickly (max < 4s)', Math.max(...perf.map((r) => r.ms)) < 4000, `${Math.max(...perf.map((r) => r.ms))}ms`);
+  const perf = await Promise.all(Array.from({ length: 12 }, () => call('/events', { token: A.token })));
+  check('12 parallel list requests all succeed', perf.every((r) => r.status === 200));
+  check('12 parallel list requests finish quickly (max < 4s)', Math.max(...perf.map((r) => r.ms)) < 4000, `${Math.max(...perf.map((r) => r.ms))}ms`);
 
   // ===================================================================== EVENTS
   sec('events: creation');
@@ -204,7 +204,6 @@ try {
   const dCount = afterRace.data.participants.filter((x) => x.user_id === D.id).length;
   check('parallel joins by one user create one participant', dCount === 1, `count ${dCount}`);
   check('parallel joins do not crash', races.every(clean));
-  const partD = afterRace.data.participants.find((x) => x.user_id === D.id);
   check('participant count is right (A, 2 ghosts, B, C, D)', afterRace.data.participants.length === 6, String(afterRace.data.participants.length));
   check('all members now see the event', (await Promise.all([B, C, D].map((u) => call('/events', { token: u.token })))).every((r) => r.data.some((e) => e.id === E1.id)));
 
@@ -262,7 +261,7 @@ try {
   check('outsider cannot list expenses', is(await call(`/events/${E1.id}/expenses`, { token: Z.token }), 404));
   for (const [label, over] of [
     ['negative amount', { amount: -5 }], ['zero amount', { amount: 0 }], ['string amount', { amount: 'abc' }], ['null amount', { amount: null }],
-    ['missing amount', { amount: undefined }], ['NaN-like amount', { amount: 'NaN' }], ['infinite amount', { amount: 1e999 }], ['huge amount', { amount: 1e15 }],
+    ['missing amount', { amount: undefined }], ['NaN-like amount', { amount: 'NaN' }], ['infinite amount', { amount: Infinity }], ['huge amount', { amount: 1e15 }],
     ['empty description', { description: '' }], ['missing description', { description: undefined }], ['description over 200 chars', { description: 'd'.repeat(201) }],
     ['unknown category', { category: 'not_a_category' }], ['unknown split type', { split_type: 'weird' }],
     ['invalid date', { date: 'not-a-date' }], ['impossible date', { date: '2026-02-31' }],

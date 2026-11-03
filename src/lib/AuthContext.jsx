@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { serverFetch, getToken, setToken, clearToken } from '@/api/server';
 
 const AuthContext = createContext(undefined);

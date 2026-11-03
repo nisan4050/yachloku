@@ -1,5 +1,5 @@
 import { wrap, getMemberEvent, jsonVal } from './lib.js';
-import { bad, text, array, object, isPlainObject } from './validate.js';
+import { bad, text, array, object } from './validate.js';
 import { emitToUser } from './realtime.js';
 
 const PREF_KEY_BY_TYPE = { chat: 'chat', poll: 'chat', expense: 'expenses', settlement: 'balance_changes' };

@@ -12,8 +12,10 @@ const SPLIT_TYPES = ['equal', 'custom', 'percentage'];
 const participantIds = (event) => new Set((event.participants ?? []).map((p) => p.id));
 
 // Validates the fields present in `body`; with `requireAll`, the fields a new expense cannot do without must be there.
-function cleanExpense(body, event, { requireAll }) {
+// `keepIds`: people already on the expense being edited stay valid even if they have since left the trip.
+function cleanExpense(body, event, { requireAll, keepIds = [] }) {
   const ids = participantIds(event);
+  for (const id of keepIds) ids.add(id);
   const raw = {};
   for (const k of EXPENSE_FIELDS) if (body && body[k] !== undefined) raw[k] = body[k];
   if (requireAll) for (const k of ['description', 'amount', 'paid_by', 'split_between']) if (raw[k] === undefined) throw bad(`${k} is required`);
@@ -76,10 +78,11 @@ export function registerExpenseRoutes(app, pool, requireAuth) {
   }));
 
   app.patch('/expenses/:id', requireAuth, wrap(async (req, res) => {
-    const eventId = await eventIdOf('expenses', req.params.id);
-    const event = eventId && (await getMemberEvent(pool, eventId, req.userId));
+    const { rows: existing } = await pool.query('select event_id, paid_by, split_between from expenses where id = $1', [req.params.id]);
+    const event = existing[0] && (await getMemberEvent(pool, existing[0].event_id, req.userId));
     if (!event) return res.status(404).json({ error: 'expense not found' });
-    const values = pick(cleanExpense(req.body, event, { requireAll: false }), EXPENSE_FIELDS);
+    const keepIds = [...(existing[0].paid_by ?? []), ...(existing[0].split_between ?? [])].map((p) => p.participant_id);
+    const values = pick(cleanExpense(req.body, event, { requireAll: false, keepIds }), EXPENSE_FIELDS);
     if (Object.keys(values).length === 0) return res.status(400).json({ error: 'nothing to update' });
     const { sql, args } = updateSql('expenses', values, 'id', req.params.id);
     const { rows } = await pool.query(sql, args);
