@@ -13,17 +13,17 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-        <Button variant="outline" asChild className="w-full sm:w-auto">
-          <Link to="/events/join">
-            <KeyRound className="h-4 w-4" />
-            {t('action_join_event')}
-          </Link>
-        </Button>
-        <Button asChild className="w-full sm:w-auto">
+      <div className="flex gap-2 sm:gap-3">
+        <Button asChild className="flex-1 sm:flex-none">
           <Link to="/events/new">
             <Plus className="h-4 w-4" />
             {t('action_create_event')}
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="flex-1 sm:flex-none">
+          <Link to="/events/join">
+            <KeyRound className="h-4 w-4" />
+            {t('action_join_event')}
           </Link>
         </Button>
       </div>
