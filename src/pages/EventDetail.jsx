@@ -14,7 +14,6 @@ import { notifyEventMembers } from '@/api/notifications';
 import { syncSettlementSystemMessages } from '@/api/systemMessages';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Fab } from '@/components/ui/fab';
 import { ExpenseItem } from '@/components/expenses/ExpenseItem';
@@ -236,56 +235,65 @@ export default function EventDetail() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
           <Link
             to="/home"
             aria-label={lang === 'he' ? 'חזרה לדף הבית' : 'Back to home'}
-            className="shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="-ms-2 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <BackIcon className="h-5 w-5" />
           </Link>
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-3xl">{event.icon}</div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">{event.title}</h1>
-              <EditEventModal event={event} />
-              {canDeleteEvent && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteEventOpen(true)}
-                  aria-label={lang === 'he' ? 'מחיקת הטיול' : 'Delete trip'}
-                  className="text-muted-foreground transition-colors hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-              <Badge>{event.currency}</Badge>
-            </div>
-            {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-2xl">{event.icon}</div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-bold text-foreground">{event.title}</h1>
+            {event.description && <p className="truncate text-sm text-muted-foreground">{event.description}</p>}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <EditEventModal event={event} />
+            {canDeleteEvent && (
+              <button
+                type="button"
+                onClick={() => setDeleteEventOpen(true)}
+                aria-label={lang === 'he' ? 'מחיקת הטיול' : 'Delete trip'}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
-            <span>{lang === 'he' ? `סה״כ הוצאות: ${formatMoney(totalExpensesAmount)}` : `Total spent: ${formatMoney(totalExpensesAmount)}`}</span>
-            <span>{lang === 'he' ? `ממוצע לאדם: ${formatMoney(avgPerParticipant)}` : `Avg. per person: ${formatMoney(avgPerParticipant)}`}</span>
+
+        <div className="grid grid-cols-2 divide-x divide-border rounded-2xl border border-border bg-card py-3 rtl:divide-x-reverse">
+          <div className="flex min-w-0 flex-col items-center gap-0.5 px-2">
+            <span className="text-xs text-muted-foreground">{lang === 'he' ? 'סה״כ הוצאות' : 'Total spent'}</span>
+            <span className="truncate text-base font-semibold text-foreground">{formatMoney(totalExpensesAmount)}</span>
           </div>
-          <TripRecapModal event={event} expenses={visibleExpenses} />
-          <Button variant="outline" onClick={handleShare}>
-            <Share2 className="h-4 w-4" />
-            {lang === 'he' ? 'הזמנת חברים' : 'Invite friends'}
+          <div className="flex min-w-0 flex-col items-center gap-0.5 px-2">
+            <span className="text-xs text-muted-foreground">{lang === 'he' ? 'ממוצע לאדם' : 'Avg. per person'}</span>
+            <span className="truncate text-base font-semibold text-foreground">{formatMoney(avgPerParticipant)}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+          <TripRecapModal event={event} expenses={visibleExpenses} triggerClassName="min-w-0 px-3 sm:px-5" />
+          <Button variant="outline" onClick={handleShare} className="min-w-0 px-3 sm:px-5">
+            <Share2 className="h-4 w-4 shrink-0" />
+            <span className="truncate">{lang === 'he' ? 'הזמנת חברים' : 'Invite friends'}</span>
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="expenses" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto w-full flex-wrap justify-center sm:w-auto">
-          <TabsTrigger value="expenses">{lang === 'he' ? 'הוצאות' : 'Expenses'}</TabsTrigger>
-          <TabsTrigger value="balances">{lang === 'he' ? 'מי חייב למי' : 'Who owes'}</TabsTrigger>
-          <TabsTrigger value="group-chat">{lang === 'he' ? 'צ׳אט כללי' : 'Group chat'}</TabsTrigger>
-          <TabsTrigger value="private-chat">{lang === 'he' ? 'צ׳אט אישי' : 'Private chat'}</TabsTrigger>
-          <TabsTrigger value="photos">{lang === 'he' ? 'תמונות' : 'Photos'}</TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <TabsList className="w-max justify-start">
+            <TabsTrigger value="expenses" className="px-3 sm:px-4">{lang === 'he' ? 'הוצאות' : 'Expenses'}</TabsTrigger>
+            <TabsTrigger value="balances" className="px-3 sm:px-4">{lang === 'he' ? 'מי חייב למי' : 'Who owes'}</TabsTrigger>
+            <TabsTrigger value="group-chat" className="px-3 sm:px-4">{lang === 'he' ? 'צ׳אט כללי' : 'Group chat'}</TabsTrigger>
+            <TabsTrigger value="private-chat" className="px-3 sm:px-4">{lang === 'he' ? 'צ׳אט אישי' : 'Private chat'}</TabsTrigger>
+            <TabsTrigger value="photos" className="px-3 sm:px-4">{lang === 'he' ? 'תמונות' : 'Photos'}</TabsTrigger>
+          </TabsList>
+        </div>
 
         <AnimatePresence mode="wait">
 
@@ -305,7 +313,7 @@ export default function EventDetail() {
                 event={event}
                 userId={user.id}
                 trigger={
-                  <Button>
+                  <Button className="hidden sm:inline-flex">
                     <Plus className="h-4 w-4" />
                     {t('action_add_expense')}
                   </Button>

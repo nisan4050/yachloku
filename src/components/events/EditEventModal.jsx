@@ -75,7 +75,7 @@ export function EditEventModal({ event }) {
         <button
           type="button"
           aria-label={t('action_edit')}
-          className="text-muted-foreground transition-colors hover:text-foreground"
+          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Pencil className="h-4 w-4" />
         </button>

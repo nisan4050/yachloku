@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-export function TripRecapModal({ event, expenses }) {
+export function TripRecapModal({ event, expenses, triggerClassName }) {
   const { user } = useAuth();
   const { lang, dir } = useLang();
   const [open, setOpen] = useState(false);
@@ -103,9 +103,9 @@ export function TripRecapModal({ event, expenses }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Sparkles className="h-4 w-4" />
-          {lang === 'he' ? 'סיכום טיול' : 'Trip recap'}
+        <Button variant="outline" className={triggerClassName}>
+          <Sparkles className="h-4 w-4 shrink-0" />
+          <span className="truncate">{lang === 'he' ? 'סיכום טיול' : 'Trip recap'}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm p-3 sm:p-6">
