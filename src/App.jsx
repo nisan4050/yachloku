@@ -17,6 +17,7 @@ import Privacy from '@/pages/Privacy';
 import Terms from '@/pages/Terms';
 import Download from '@/pages/Download';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
+import { LongPressReveal } from '@/components/ui/long-press-reveal';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
   return (
     <>
       <Toaster position="top-center" richColors closeButton />
+      <LongPressReveal />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

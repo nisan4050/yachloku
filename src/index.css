@@ -93,3 +93,11 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+/* Long-press on cut-off text shows the full text (see LongPressReveal) — don't start text selection / native menu */
+.truncate,
+[class*='line-clamp-'] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
