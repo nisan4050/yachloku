@@ -6,12 +6,13 @@ export const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // Sends through Resend. Throws on failure so callers decide whether it matters.
-export async function sendEmail({ to, subject, html, replyTo }) {
+// `text` is the plain-text version shown by clients that do not render HTML.
+export async function sendEmail({ to, subject, html, text, replyTo }) {
   if (!mailEnabled) throw new Error('email is not configured');
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: MAIL_FROM, to: Array.isArray(to) ? to : [to], subject, html, reply_to: replyTo || undefined }),
+    body: JSON.stringify({ from: MAIL_FROM, to: Array.isArray(to) ? to : [to], subject, html, text: text || undefined, reply_to: replyTo || undefined }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
