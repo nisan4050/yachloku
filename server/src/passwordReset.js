@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { wrap } from './lib.js';
 import { sendEmail, escapeHtml } from './mail.js';
+import { renderEmail, paragraph, note, button, divider, COLORS } from './emailLayout.js';
 import { hashPassword, issueToken, forgetUser } from './auth.js';
 import { createLimiter } from './rateLimit.js';
 import { isAdminEmail } from './admin.js';
@@ -15,16 +16,35 @@ const MAX_PASSWORD = 200;
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
-function resetEmail(name, link) {
-  return `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:480px;margin:auto">
-    <h2>איפוס סיסמה ליחלוקו</h2>
-    <p>שלום ${escapeHtml(name)},</p>
-    <p>קיבלנו בקשה לאפס את הסיסמה לחשבון שלך. הקישור תקף לשעה אחת:</p>
-    <p><a href="${escapeHtml(link)}" style="display:inline-block;background:#1f9d6e;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none">בחירת סיסמה חדשה</a></p>
-    <p style="color:#666;font-size:13px">אם לא ביקשת לאפס סיסמה, אפשר להתעלם מהמייל הזה והסיסמה הנוכחית תישאר ללא שינוי.</p>
-    <hr style="border:none;border-top:1px solid #eee">
-    <div dir="ltr"><p>Hi ${escapeHtml(name)}, we received a request to reset your Yachloku password. Use the button above (valid for 1 hour). If this wasn't you, ignore this email.</p></div>
-  </div>`;
+export function resetEmail(name, link) {
+  const who = escapeHtml(name || '');
+  const html = renderEmail({
+    title: 'איפוס סיסמה',
+    subtitle: 'בחירת סיסמה חדשה לחשבון שלך',
+    preheader: 'הקישור לאיפוס הסיסמה תקף לשעה אחת.',
+    body: [
+      paragraph(`שלום ${who},`, { style: 'font-weight:700' }),
+      paragraph(`קיבלנו בקשה לאפס את הסיסמה לחשבון שלך ביחלוקו. כדי לבחור סיסמה חדשה, לוחצים על הכפתור. הקישור תקף <b>לשעה אחת</b>.`),
+      button('בחירת סיסמה חדשה', link),
+      note(`אם הכפתור לא עובד, אפשר להעתיק את הקישור הזה לדפדפן:<br><a href="${escapeHtml(link)}" style="color:${COLORS.brand};word-break:break-all"><bdi>${escapeHtml(link)}</bdi></a>`),
+      note('אם לא ביקשת לאפס סיסמה, אפשר להתעלם מהמייל הזה והסיסמה הנוכחית תישאר ללא שינוי.'),
+      divider(),
+      paragraph(`Hi <bdi>${who}</bdi>, we received a request to reset your Yachloku password. Use the button above (valid for 1 hour). If this wasn't you, you can ignore this email.`, { dir: 'ltr', size: 13, color: COLORS.muted }),
+    ].join('\n'),
+  });
+  const text = [
+    `שלום ${name || ''},`,
+    '',
+    'קיבלנו בקשה לאפס את הסיסמה לחשבון שלך ביחלוקו.',
+    'לבחירת סיסמה חדשה (הקישור תקף לשעה אחת):',
+    link,
+    '',
+    'אם לא ביקשת לאפס סיסמה, אפשר להתעלם מהמייל הזה.',
+    '',
+    '---',
+    `Hi ${name || ''}, use the link above to reset your Yachloku password (valid for 1 hour). If this wasn't you, ignore this email.`,
+  ].join('\n');
+  return { html, text };
 }
 
 export function registerPasswordResetRoutes(app, pool) {
@@ -54,7 +74,7 @@ export function registerPasswordResetRoutes(app, pool) {
       await sendEmail({
         to: user.email,
         subject: 'איפוס סיסמה ליחלוקו',
-        html: resetEmail(user.name, `${APP_URL}/reset-password?token=${token}`),
+        ...resetEmail(user.name, `${APP_URL}/reset-password?token=${token}`),
       });
     } catch (err) {
       console.error('password reset request failed', err.message);
